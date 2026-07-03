@@ -1,0 +1,57 @@
+# Local environments
+quenv/
+.venv/
+venv/
+env/
+# new/
+data.zip
+
+# Python cache/build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+
+# Data and archives
+data/
+data.zip
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# Experiment outputs and generated figures/metrics
+results*/
+outputs/
+runs/
+logs/
+*.log
+*.out
+*.err
+*.npy
+*.npz
+*.pkl
+*.pt
+*.pth
+*.ckpt
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.csv
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
