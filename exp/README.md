@@ -1,6 +1,6 @@
 # 实验目录索引
 
-本目录只保留两个主线实验入口和最终结果。以后查最新结果，一律看 `final/`。
+本目录保留当前论文实验入口和确认过的结果。以后查最新结果，一律优先看各实验的 `final/` 或 `final_real/`。
 
 ## 目录结构
 
@@ -10,6 +10,9 @@
 - `k_search/`
   - `run.py`：ADC-aware surrogate 一维 k 搜索入口。
   - `final/`：当前最终 k 搜索结果。
+- `experiment1_objective/`
+  - `run_real_calibration.py`：实验一真实 calibration 版目标函数扫描。
+  - `final_real/`：当前实验一真实 calibration 结果。
 
 ## 当前最终结果
 
@@ -27,11 +30,19 @@ k 搜索图：
 - `k_search/final/femnist_randk_k_search.png`
 - `k_search/final/summary.md`
 
+实验一目标函数验证：
+
+- `experiment1_objective/final_real/summary_real.md`
+- `experiment1_objective/final_real/objective_terms_real.csv`
+- `experiment1_objective/final_real/real_experiment1_objective_decomposition.png`
+- `experiment1_objective/final_real/real_experiment1_topk_adc_ablation.png`
+
 ## 当前实验结论
 
 - 完整系统 FEMNIST 第 120 轮排序：Top-k `79.81%` > Rand-k `77.16%` > Full `76.44%`。
 - Rand-k 已启用 error feedback，因此 baseline 不再被不公平地压低。
 - k 搜索使用 surrogate calibration，估计 `bar_omega`、`rho`、`ADC proxy` 和 `b*(k)`，不是用短训练准确率直接搜索。
+- 实验一真实 calibration 默认权重下搜索得到 Top-k `k*/d=0.10`、Rand-k `k*/d=0.50`；Top-k 在中等 ADC 权重下的最优区间为 `0.10-0.20`。
 
 ## 后续规范
 
