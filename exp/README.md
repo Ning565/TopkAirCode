@@ -55,7 +55,7 @@ k 搜索图：
 - k 搜索使用 surrogate calibration，估计 `bar_omega`、`rho`、`ADC proxy` 和 `b*(k)`，不是用短训练准确率直接搜索。
 - 实验一真实 calibration 默认权重下搜索得到 Top-k `k*/d=0.10`、Rand-k `k*/d=0.50`；Top-k 在中等 ADC 权重下的最优区间为 `0.10-0.20`。
 - 实验二候选严格设置为 `epsilon=1e8`、`sigma0=0.05`、`Pmax=1e4`、`ADC gamma=2.5`，第 200 轮排序为 Top-k `83.41%` > Rand-k `81.49%` > Full `77.88%`。
-- 实验二已补 `seed=2027` 并生成两 seed 汇总：第 200 轮均值 Top-k `81.04%` > Rand-k `79.59%` > Full `77.55%`；但 Rand-k 的最好准确率均值 `81.17%` 与 Top-k `81.04%` 很接近，正式主文仍建议继续补到至少 3 个 seed。
+- 实验二已补 `seed=2027,2028` 并生成三 seed 汇总：第 200 轮均值 Top-k `81.67%` > Rand-k `81.04%` > Full `79.14%`；但 Rand-k 的最好准确率均值 `82.64%` 略高于 Top-k `82.21%`，正式主文应避免夸大 Top-k 的最终准确率优势。
 
 ## 后续规范
 

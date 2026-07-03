@@ -75,20 +75,26 @@ quenv/bin/python exp/full_system/aggregate_experiment2_candidates.py
 - `experiment2_multiseed/summary.json`
 - `experiment2_multiseed/femnist_final_accuracy_multiseed.png`
 
-当前已经补充 `seed=2027`，对应目录：
+当前已经补充 `seed=2027` 和 `seed=2028`，对应目录：
 
 - `exp/full_system/experiment2_seed2027_top_rand`
 - `exp/full_system/experiment2_seed2027_full`
 - `exp/full_system/experiment2_candidate_seed2027`
+- `exp/full_system/experiment2_seed2028_all`
+- `exp/full_system/experiment2_candidate_seed2028`
 - `exp/full_system/experiment2_multiseed`
 
-两 seed 汇总结果：
+三 seed 汇总结果：
 
 | 方法 | seeds | 第 200 轮准确率均值 | 第 200 轮准确率 std | 最好准确率均值 |
 |---|---:|---:|---:|---:|
-| Top-k | 2 | 81.04 | 3.35 | 81.04 |
-| Rand-k | 2 | 79.59 | 2.68 | 81.17 |
-| Full | 2 | 77.55 | 0.48 | 79.11 |
+| Top-k | 3 | 81.67 | 2.61 | 82.21 |
+| Rand-k | 3 | 81.04 | 3.15 | 82.64 |
+| Full | 3 | 79.14 | 2.78 | 80.52 |
+
+结论口径：第 200 轮均值目前为 Top-k > Rand-k > Full，但 Top-k 和 Rand-k 差距只有
+`0.63` 个百分点，且最好准确率均值 Rand-k 略高于 Top-k。正式主文不应夸大最终准确率优势，
+更稳妥的表述是 Top-k 在更小 `k/d` 下获得相近或略高的最终均值，并具有更大的 `b*`。
 
 当前单 seed 结果：
 
@@ -98,4 +104,4 @@ quenv/bin/python exp/full_system/aggregate_experiment2_candidates.py
 | Rand-k | 0.35 | 81.49 | 82.93 |
 | Full | 1.00 | 77.88 | 80.53 |
 
-后续正式主文建议补充多随机种子，并报告均值和标准差。
+后续正式主文建议继续补充随机种子，并报告均值和标准差。

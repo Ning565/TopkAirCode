@@ -104,7 +104,8 @@ def main() -> None:
                 f"{item['papr_p99_last']:.2f} | {item['clip_energy_last']:.2e} | {item['regime']} |\n"
             )
         handle.write("\n## 结论\n\n")
-        handle.write("- 当前候选设置得到第200轮排序：Top-k > Rand-k > Full。\n")
+        rank = " > ".join(item["method"] for item in sorted(summary, key=lambda x: x["final_accuracy"], reverse=True))
+        handle.write(f"- 当前候选设置得到第200轮排序：{rank}。\n")
         handle.write("- Top-k 使用 `k/d=0.20`，Rand-k 使用 `k/d=0.35`，Full 使用 `k/d=1.00`。\n")
         handle.write("- 该设置基于严格场景诊断和真实训练验证得到；仍建议后续补多随机种子。\n")
 

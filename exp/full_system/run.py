@@ -67,6 +67,7 @@ class Config:
     full_ratio: float = 1.0
     topk_error_feedback: bool = True
     error_feedback_methods: Tuple[str, ...] = ("topk", "randk")
+    randk_mask_mode: str = "common"
     element_clip: float = 0.05
 
     # OFDM-AirComp-ADC.
@@ -456,7 +457,9 @@ class Experiment:
         for r in range(cfg.rounds):
             signals, masks, losses, retained = [], [], [], []
             gen = torch.Generator(device="cpu").manual_seed(cfg.seed + 10007 * r + int(ratio * 1_000_000))
-            common_idx = torch.randperm(d, generator=gen)[:k] if method == "randk" and k < d else None
+            common_idx = None
+            if method == "randk" and k < d and cfg.randk_mask_mode == "common":
+                common_idx = torch.randperm(d, generator=gen)[:k]
             for cid in range(cfg.num_clients):
                 raw, loss = self.client_delta(model, cid, lr, local_steps)
                 use_ef = self.use_error_feedback(method)
@@ -550,6 +553,7 @@ def main():
     parser.add_argument("--adc-backoff-gamma", type=float, default=Config.adc_backoff_gamma)
     parser.add_argument("--ofdm-subcarriers", type=int, default=Config.ofdm_subcarriers)
     parser.add_argument("--error-feedback-methods", default="topk,randk")
+    parser.add_argument("--randk-mask-mode", choices=("common", "independent"), default=Config.randk_mask_mode)
     args = parser.parse_args()
     cfg = Config(
         seed=args.seed,
@@ -568,6 +572,7 @@ def main():
         adc_backoff_gamma=args.adc_backoff_gamma,
         ofdm_subcarriers=args.ofdm_subcarriers,
         error_feedback_methods=tuple(x.strip() for x in args.error_feedback_methods.split(",") if x.strip()),
+        randk_mask_mode=args.randk_mask_mode,
     )
     if cfg.device.startswith("cuda") and not torch.cuda.is_available():
         cfg.device = "cpu"
@@ -631,6 +636,7 @@ def main():
                 if sub:
                     ratio_lines.append(f"{dataset}:{method}={sub[0]['ratio']:.2f}")
         f.write(f"- 实际压缩率：{', '.join(ratio_lines)}\n")
+        f.write(f"- Rand-k mask mode：{cfg.randk_mask_mode}\n")
         f.write(f"- OFDM 子载波数 M={cfg.ofdm_subcarriers}，过采样倍数={cfg.oversampling}，ADC backoff gamma={cfg.adc_backoff_gamma}\n\n")
         f.write("## 最终结果\n\n")
         f.write("| 数据集 | 方法 | 压缩率 | 最终准确率 | PAPR P99 | NCE | b* | 约束状态 |\n")

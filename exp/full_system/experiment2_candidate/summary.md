@@ -18,6 +18,6 @@ python exp/full_system/build_experiment2_candidate.py --seed 2026 --top-rand-csv
 
 ## 结论
 
-- 当前候选设置得到第200轮排序：Top-k > Rand-k > Full。
+- 当前候选设置得到第200轮排序：topk > randk > full。
 - Top-k 使用 `k/d=0.20`，Rand-k 使用 `k/d=0.35`，Full 使用 `k/d=1.00`。
 - 该设置基于严格场景诊断和真实训练验证得到；仍建议后续补多随机种子。
