@@ -622,8 +622,13 @@ def main():
         f.write("# 完整系统 ADC/DP/功率约束实验\n\n")
         f.write("## 实验设置\n\n")
         f.write(f"- 通信轮数：{cfg.rounds}\n- epsilon：{cfg.epsilon}，delta：{cfg.delta}\n")
-        f.write(f"- Top-k 压缩率：MNIST {cfg.topk_ratio_mnist}，FEMNIST {cfg.topk_ratio_femnist}\n")
-        f.write(f"- Rand-k 压缩率：{cfg.randk_ratio}；Full 压缩率：1.0\n")
+        ratio_lines = []
+        for dataset in cfg.datasets:
+            for method in cfg.methods:
+                sub = [r for r in final if r["dataset"] == dataset and r["method"] == method]
+                if sub:
+                    ratio_lines.append(f"{dataset}:{method}={sub[0]['ratio']:.2f}")
+        f.write(f"- 实际压缩率：{', '.join(ratio_lines)}\n")
         f.write(f"- OFDM 子载波数 M={cfg.ofdm_subcarriers}，过采样倍数={cfg.oversampling}，ADC backoff gamma={cfg.adc_backoff_gamma}\n\n")
         f.write("## 最终结果\n\n")
         f.write("| 数据集 | 方法 | 压缩率 | 最终准确率 | PAPR P99 | NCE | b* | 约束状态 |\n")
