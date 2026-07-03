@@ -534,6 +534,7 @@ def plot_accuracy(rows: List[Dict], out_dir: Path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", default="cuda:3")
+    parser.add_argument("--seed", type=int, default=Config.seed)
     parser.add_argument("--rounds", type=int, default=200)
     parser.add_argument("--datasets", default="mnist,femnist")
     parser.add_argument("--methods", default="topk,randk,full")
@@ -551,6 +552,7 @@ def main():
     parser.add_argument("--error-feedback-methods", default="topk,randk")
     args = parser.parse_args()
     cfg = Config(
+        seed=args.seed,
         device=args.device,
         rounds=args.rounds,
         datasets=tuple(x.strip() for x in args.datasets.split(",") if x.strip()),
