@@ -1,5 +1,6 @@
 [
   {
+    "seed": 2026,
     "dataset": "femnist",
     "method": "topk",
     "ratio": 0.2,
@@ -14,6 +15,7 @@
     "clip_energy_last": 0.000132134385553202
   },
   {
+    "seed": 2026,
     "dataset": "femnist",
     "method": "randk",
     "ratio": 0.35,
@@ -28,6 +30,7 @@
     "clip_energy_last": 0.0001344274954737848
   },
   {
+    "seed": 2026,
     "dataset": "femnist",
     "method": "full",
     "ratio": 1.0,

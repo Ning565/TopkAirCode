@@ -1,0 +1,13 @@
+[
+  {
+    "dataset": "femnist",
+    "method": "full",
+    "final_accuracy": 77.20588235294117,
+    "ratio": 1.0,
+    "k": 404222,
+    "papr_p99_last": 11.1193208694458,
+    "clip_energy_last": 0.00011790483864808483,
+    "b_star": 0.3145719702064071,
+    "regime": "power"
+  }
+]

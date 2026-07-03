@@ -1,11 +1,11 @@
 # 实验二候选结果：严格 DP/功率约束下的优化工作点
 
-本结果由真实训练 CSV 合并生成：Top-k/Rand-k 来自 `experiment2_strict_k020_r035`，Full 来自 `experiment2_strict`。通信参数一致：`epsilon=1e8`、`sigma0=0.05`、`Pmax=1e4`、`ADC gamma=2.5`、`rounds=200`。
+本结果由真实训练 CSV 合并生成：Top-k/Rand-k 来自 `experiment2_strict_k020_r035`，Full 来自 `experiment2_strict`。通信参数一致：`epsilon=1e8`、`sigma0=0.05`、`Pmax=1e4`、`ADC gamma=2.5`、`rounds=200`、`seed=2026`。
 
 复现合并图命令：
 
 ```bash
-python exp/full_system/build_experiment2_candidate.py
+python exp/full_system/build_experiment2_candidate.py --seed 2026 --top-rand-csv exp/full_system/experiment2_strict_k020_r035/metrics_rounds.csv --full-csv exp/full_system/experiment2_strict/metrics_rounds.csv --output-dir exp/full_system/experiment2_candidate
 ```
 
 ## 结果

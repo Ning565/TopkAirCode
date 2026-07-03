@@ -29,6 +29,7 @@ def main() -> None:
     parser.add_argument("--top-rand-csv", default="exp/full_system/experiment2_strict_k020_r035/metrics_rounds.csv")
     parser.add_argument("--full-csv", default="exp/full_system/experiment2_strict/metrics_rounds.csv")
     parser.add_argument("--output-dir", default="exp/full_system/experiment2_candidate")
+    parser.add_argument("--seed", type=int, default=2026)
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
@@ -56,6 +57,7 @@ def main() -> None:
         last = max(sub, key=lambda row: row["round_i"])
         best = max(sub, key=lambda row: row["acc_f"])
         summary.append({
+            "seed": args.seed,
             "dataset": "femnist",
             "method": method,
             "ratio": float(last["ratio"]),
@@ -74,15 +76,23 @@ def main() -> None:
 
     with (out_dir / "summary.md").open("w", encoding="utf-8") as handle:
         handle.write("# 实验二候选结果：严格 DP/功率约束下的优化工作点\n\n")
+        top_rand_name = Path(args.top_rand_csv).parent.name
+        full_name = Path(args.full_csv).parent.name
         handle.write(
             "本结果由真实训练 CSV 合并生成：Top-k/Rand-k 来自 "
-            "`experiment2_strict_k020_r035`，Full 来自 `experiment2_strict`。"
+            f"`{top_rand_name}`，Full 来自 `{full_name}`。"
             "通信参数一致：`epsilon=1e8`、`sigma0=0.05`、`Pmax=1e4`、"
-            "`ADC gamma=2.5`、`rounds=200`。\n\n"
+            f"`ADC gamma=2.5`、`rounds=200`、`seed={args.seed}`。\n\n"
         )
         handle.write("复现合并图命令：\n\n")
         handle.write("```bash\n")
-        handle.write("python exp/full_system/build_experiment2_candidate.py\n")
+        handle.write(
+            "python exp/full_system/build_experiment2_candidate.py "
+            f"--seed {args.seed} "
+            f"--top-rand-csv {args.top_rand_csv} "
+            f"--full-csv {args.full_csv} "
+            f"--output-dir {args.output_dir}\n"
+        )
         handle.write("```\n\n")
         handle.write("## 结果\n\n")
         handle.write("| 方法 | k/d | 第200轮准确率 | 最好准确率 | 最好轮次 | b* | PAPR P99 | NCE | 约束 |\n")

@@ -9,6 +9,7 @@
   - `final/`：当前最终完整系统结果。
   - `experiment2_candidate/`：严格 DP/功率约束下的实验二候选结果。
   - `build_experiment2_candidate.py`：从真实训练 CSV 合并生成实验二候选图和汇总。
+  - `aggregate_experiment2_candidates.py`：汇总多个实验二候选 seed 的均值和标准差。
 - `k_search/`
   - `run.py`：ADC-aware surrogate 一维 k 搜索入口。
   - `final/`：当前最终 k 搜索结果。
@@ -29,6 +30,8 @@
 - `full_system/experiment2_candidate/femnist_rounds_vs_accuracy.png`
 - `full_system/experiment2_candidate/summary.md`
 - `full_system/experiment2_candidate/metrics_rounds.csv`
+- `full_system/experiment2_multiseed/summary.md`
+- `full_system/experiment2_multiseed/femnist_final_accuracy_multiseed.png`
 
 k 搜索图：
 
@@ -52,6 +55,7 @@ k 搜索图：
 - k 搜索使用 surrogate calibration，估计 `bar_omega`、`rho`、`ADC proxy` 和 `b*(k)`，不是用短训练准确率直接搜索。
 - 实验一真实 calibration 默认权重下搜索得到 Top-k `k*/d=0.10`、Rand-k `k*/d=0.50`；Top-k 在中等 ADC 权重下的最优区间为 `0.10-0.20`。
 - 实验二候选严格设置为 `epsilon=1e8`、`sigma0=0.05`、`Pmax=1e4`、`ADC gamma=2.5`，第 200 轮排序为 Top-k `83.41%` > Rand-k `81.49%` > Full `77.88%`。
+- 实验二已补 `seed=2027` 并生成两 seed 汇总：第 200 轮均值 Top-k `81.04%` > Rand-k `79.59%` > Full `77.55%`；但 Rand-k 的最好准确率均值 `81.17%` 与 Top-k `81.04%` 很接近，正式主文仍建议继续补到至少 3 个 seed。
 
 ## 后续规范
 

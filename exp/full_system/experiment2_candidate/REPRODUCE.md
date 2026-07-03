@@ -50,7 +50,7 @@ quenv/bin/python exp/full_system/run.py \
 ## 合并候选图
 
 ```bash
-quenv/bin/python exp/full_system/build_experiment2_candidate.py
+quenv/bin/python exp/full_system/build_experiment2_candidate.py --seed 2026
 ```
 
 输出：
@@ -58,6 +58,37 @@ quenv/bin/python exp/full_system/build_experiment2_candidate.py
 - `femnist_rounds_vs_accuracy.png`
 - `metrics_rounds.csv`
 - `summary.md`
+
+## 多 seed 汇总
+
+每个 seed 先用同一套真实训练命令生成 Top-k/Rand-k 和 Full 的 CSV，再用
+`build_experiment2_candidate.py --seed <SEED> --output-dir exp/full_system/experiment2_candidate_seed<SEED>`
+生成候选目录。随后运行：
+
+```bash
+quenv/bin/python exp/full_system/aggregate_experiment2_candidates.py
+```
+
+输出：
+
+- `experiment2_multiseed/summary.md`
+- `experiment2_multiseed/summary.json`
+- `experiment2_multiseed/femnist_final_accuracy_multiseed.png`
+
+当前已经补充 `seed=2027`，对应目录：
+
+- `exp/full_system/experiment2_seed2027_top_rand`
+- `exp/full_system/experiment2_seed2027_full`
+- `exp/full_system/experiment2_candidate_seed2027`
+- `exp/full_system/experiment2_multiseed`
+
+两 seed 汇总结果：
+
+| 方法 | seeds | 第 200 轮准确率均值 | 第 200 轮准确率 std | 最好准确率均值 |
+|---|---:|---:|---:|---:|
+| Top-k | 2 | 81.04 | 3.35 | 81.04 |
+| Rand-k | 2 | 79.59 | 2.68 | 81.17 |
+| Full | 2 | 77.55 | 0.48 | 79.11 |
 
 当前单 seed 结果：
 

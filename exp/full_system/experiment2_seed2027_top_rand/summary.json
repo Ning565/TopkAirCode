@@ -1,0 +1,24 @@
+[
+  {
+    "dataset": "femnist",
+    "method": "topk",
+    "final_accuracy": 78.67647058823529,
+    "ratio": 0.2,
+    "k": 80844,
+    "papr_p99_last": 11.241388320922852,
+    "clip_energy_last": 0.00011727944230667845,
+    "b_star": 0.7034060493475798,
+    "regime": "power"
+  },
+  {
+    "dataset": "femnist",
+    "method": "randk",
+    "final_accuracy": 77.69607843137256,
+    "ratio": 0.35,
+    "k": 141477,
+    "papr_p99_last": 11.078544616699219,
+    "clip_energy_last": 0.00011780976298610282,
+    "b_star": 0.5317249935063211,
+    "regime": "power"
+  }
+]
