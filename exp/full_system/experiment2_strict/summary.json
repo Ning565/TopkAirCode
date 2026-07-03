@@ -1,0 +1,35 @@
+[
+  {
+    "dataset": "femnist",
+    "method": "topk",
+    "final_accuracy": 82.9326923076923,
+    "ratio": 0.1,
+    "k": 40422,
+    "papr_p99_last": 11.300189971923828,
+    "clip_energy_last": 0.00013361889771204636,
+    "b_star": 0.994766374842626,
+    "regime": "power"
+  },
+  {
+    "dataset": "femnist",
+    "method": "randk",
+    "final_accuracy": 83.17307692307692,
+    "ratio": 0.5,
+    "k": 202111,
+    "papr_p99_last": 11.160501480102539,
+    "clip_energy_last": 0.00013406871482826268,
+    "b_star": 0.444871946608326,
+    "regime": "power"
+  },
+  {
+    "dataset": "femnist",
+    "method": "full",
+    "final_accuracy": 77.88461538461539,
+    "ratio": 1.0,
+    "k": 404222,
+    "papr_p99_last": 11.157063484191895,
+    "clip_energy_last": 0.00013391304154202304,
+    "b_star": 0.3145719702064071,
+    "regime": "power"
+  }
+]

@@ -7,6 +7,8 @@
 - `full_system/`
   - `run.py`：完整系统实验入口，包含 DP 模块、功率约束、OFDM/PAPR、ADC 截断和联邦学习收敛。
   - `final/`：当前最终完整系统结果。
+  - `experiment2_candidate/`：严格 DP/功率约束下的实验二候选结果。
+  - `build_experiment2_candidate.py`：从真实训练 CSV 合并生成实验二候选图和汇总。
 - `k_search/`
   - `run.py`：ADC-aware surrogate 一维 k 搜索入口。
   - `final/`：当前最终 k 搜索结果。
@@ -21,6 +23,12 @@
 - `full_system/final/femnist_rounds_vs_accuracy.png`
 - `full_system/final/summary.md`
 - `full_system/final/metrics_rounds.csv`
+
+实验二候选收敛图：
+
+- `full_system/experiment2_candidate/femnist_rounds_vs_accuracy.png`
+- `full_system/experiment2_candidate/summary.md`
+- `full_system/experiment2_candidate/metrics_rounds.csv`
 
 k 搜索图：
 
@@ -43,6 +51,7 @@ k 搜索图：
 - Rand-k 已启用 error feedback，因此 baseline 不再被不公平地压低。
 - k 搜索使用 surrogate calibration，估计 `bar_omega`、`rho`、`ADC proxy` 和 `b*(k)`，不是用短训练准确率直接搜索。
 - 实验一真实 calibration 默认权重下搜索得到 Top-k `k*/d=0.10`、Rand-k `k*/d=0.50`；Top-k 在中等 ADC 权重下的最优区间为 `0.10-0.20`。
+- 实验二候选严格设置为 `epsilon=1e8`、`sigma0=0.05`、`Pmax=1e4`、`ADC gamma=2.5`，第 200 轮排序为 Top-k `83.41%` > Rand-k `81.49%` > Full `77.88%`。
 
 ## 后续规范
 

@@ -322,6 +322,15 @@ def main() -> None:
     parser.add_argument("--device", default="cuda:3")
     parser.add_argument("--lambda-channel", type=float, default=ObjectiveWeights.lambda_channel)
     parser.add_argument("--lambda-adc", type=float, default=ObjectiveWeights.lambda_adc)
+    parser.add_argument("--rounds", type=int, default=200)
+    parser.add_argument("--epsilon", type=float, default=BaseConfig.epsilon)
+    parser.add_argument("--delta", type=float, default=BaseConfig.delta)
+    parser.add_argument("--sigma0", type=float, default=BaseConfig.sigma0)
+    parser.add_argument("--h-th", type=float, default=BaseConfig.h_th)
+    parser.add_argument("--p-max", type=float, default=BaseConfig.p_max)
+    parser.add_argument("--eta-tau-c", type=float, default=BaseConfig.eta_tau_C)
+    parser.add_argument("--adc-backoff-gamma", type=float, default=BaseConfig.adc_backoff_gamma)
+    parser.add_argument("--ofdm-subcarriers", type=int, default=2000)
     args = parser.parse_args()
 
     cfg = BaseConfig(
@@ -330,8 +339,15 @@ def main() -> None:
         datasets=(args.dataset,),
         methods=tuple(x.strip() for x in args.methods.split(",") if x.strip()),
         num_clients=args.num_clients,
-        rounds=200,
-        ofdm_subcarriers=2000,
+        rounds=args.rounds,
+        epsilon=args.epsilon,
+        delta=args.delta,
+        sigma0=args.sigma0,
+        h_th=args.h_th,
+        p_max=args.p_max,
+        eta_tau_C=args.eta_tau_c,
+        adc_backoff_gamma=args.adc_backoff_gamma,
+        ofdm_subcarriers=args.ofdm_subcarriers,
     )
     if cfg.device.startswith("cuda") and not torch.cuda.is_available():
         cfg.device = "cpu"
