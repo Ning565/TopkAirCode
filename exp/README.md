@@ -10,6 +10,10 @@
   - `experiment2_candidate/`：严格 DP/功率约束下的实验二候选结果。
   - `build_experiment2_candidate.py`：从真实训练 CSV 合并生成实验二候选图和汇总。
   - `aggregate_experiment2_candidates.py`：汇总多个实验二候选 seed 的均值和标准差。
+  - `sweep_experiment2_ratios.py`：扫描实验二 Top-k/Rand-k 压缩率与性能关系。
+  - `run_experiment2_ratio_sweep.sh`：后台启动实验二真实压缩率 sweep。
+  - `run_experiment2_convergence.sh`：后台启动实验二收敛性训练。
+  - `EXPERIMENT2_PIPELINE.md`：实验二从离线搜索到真实训练验证再到收敛图的执行流程。
 - `k_search/`
   - `run.py`：ADC-aware surrogate 一维 k 搜索入口。
   - `final/`：当前最终 k 搜索结果。
