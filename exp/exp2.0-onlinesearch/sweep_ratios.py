@@ -63,6 +63,8 @@ def build_command(args, method: str, ratio: float, out_dir: Path) -> List[str]:
         str(args.adc_backoff_gamma),
         "--element-clip",
         str(args.element_clip),
+        "--error-feedback-methods",
+        args.error_feedback_methods,
         "--randk-mask-mode",
         args.randk_mask_mode,
         "--output-dir",
@@ -164,6 +166,7 @@ def write_markdown(path: Path, rows: List[Dict], args) -> None:
         handle.write(f"- Pmax: `{args.p_max}`\n")
         handle.write(f"- ADC gamma: `{args.adc_backoff_gamma}`\n")
         handle.write(f"- element clip: `{args.element_clip}`\n")
+        handle.write(f"- error feedback methods: `{args.error_feedback_methods}`\n")
         handle.write(f"- Rand-k mask mode: `{args.randk_mask_mode}`\n")
         handle.write(f"- target accuracy for speed: `{args.target_accuracy}`\n\n")
 
@@ -237,8 +240,9 @@ def main() -> None:
     parser.add_argument("--epsilon", type=float, default=1e10)
     parser.add_argument("--sigma0", type=float, default=0.01)
     parser.add_argument("--p-max", type=float, default=1e6)
-    parser.add_argument("--adc-backoff-gamma", type=float, default=2.0)
+    parser.add_argument("--adc-backoff-gamma", type=float, default=1.5)
     parser.add_argument("--element-clip", type=float, default=0.02)
+    parser.add_argument("--error-feedback-methods", default="topk,randk")
     parser.add_argument("--randk-mask-mode", choices=("common", "independent"), default="common")
     parser.add_argument("--target-accuracy", type=float, default=75.0)
     parser.add_argument("--output-dir", default="logs/experiments/exp2.0-onlinesearch/ratio_sweep")

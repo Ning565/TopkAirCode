@@ -12,14 +12,16 @@ EVAL_EVERY="${EVAL_EVERY:-5}"
 EPSILON="${EPSILON:-1e10}"
 SIGMA0="${SIGMA0:-0.01}"
 P_MAX="${P_MAX:-1e6}"
-ADC_GAMMA="${ADC_GAMMA:-2.0}"
+ADC_GAMMA="${ADC_GAMMA:-1.5}"
 ELEMENT_CLIP="${ELEMENT_CLIP:-0.02}"
+ERROR_FEEDBACK_METHODS="${ERROR_FEEDBACK_METHODS:-topk,randk}"
 RANDK_MASK_MODE="${RANDK_MASK_MODE:-common}"
 
 # Ratios cover the current exp1-ksearch real-calibration optima and neighbors.
 TOPK_RATIOS="${TOPK_RATIOS:-0.05,0.10,0.15,0.20,0.25,0.35,0.50,0.65}"
 RANDK_RATIOS="${RANDK_RATIOS:-0.20,0.35,0.50,0.65,0.80}"
-PROFILE="eps${EPSILON}_sig${SIGMA0}_p${P_MAX}_g${ADC_GAMMA}_clip${ELEMENT_CLIP}"
+SAFE_EF="${ERROR_FEEDBACK_METHODS//,/+}"
+PROFILE="eps${EPSILON}_sig${SIGMA0}_p${P_MAX}_g${ADC_GAMMA}_clip${ELEMENT_CLIP}_ef${SAFE_EF}"
 
 OUT_DIR="${OUT_DIR:-logs/experiments/exp2.0-onlinesearch/seed${SEED}_r${ROUNDS}_${PROFILE}}"
 LOG_DIR="${LOG_DIR:-logs}"
@@ -44,6 +46,7 @@ CMD=(
   --p-max "$P_MAX"
   --adc-backoff-gamma "$ADC_GAMMA"
   --element-clip "$ELEMENT_CLIP"
+  --error-feedback-methods "$ERROR_FEEDBACK_METHODS"
   --randk-mask-mode "$RANDK_MASK_MODE"
   --output-dir "$OUT_DIR"
 )

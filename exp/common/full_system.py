@@ -73,7 +73,7 @@ class Config:
     # OFDM-AirComp-ADC.
     ofdm_subcarriers: int = 2000
     oversampling: int = 4
-    adc_backoff_gamma: float = 2.0
+    adc_backoff_gamma: float = 1.5
 
     # DP / power model. The default profile is intentionally privacy-bottleneck
     # visible: increasing k improves retained update information first, but also

@@ -10,7 +10,7 @@ LOG_DIR="${LOG_DIR:-logs/experiments/exp1-ksearch}"
 EPSILON="${EPSILON:-1e10}"
 SIGMA0="${SIGMA0:-0.01}"
 P_MAX="${P_MAX:-1e6}"
-ADC_GAMMA="${ADC_GAMMA:-2.0}"
+ADC_GAMMA="${ADC_GAMMA:-1.5}"
 ELEMENT_CLIP="${ELEMENT_CLIP:-0.02}"
 mkdir -p "${OUT_DIR}" "${LOG_DIR}"
 

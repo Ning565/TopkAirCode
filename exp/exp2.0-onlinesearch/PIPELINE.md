@@ -26,8 +26,9 @@
 - `epsilon=1e10`
 - `sigma0=0.01`
 - `Pmax=1e6`
-- `ADC gamma=2.0`
+- `ADC gamma=1.5`
 - `element_clip=0.02`
+- `error_feedback_methods=topk,randk`
 - `Rand-k mask mode=common`
 
 该 profile 让 `b*(k)` 进入隐私约束区间：压缩率增大时，保留信息先增加；继续增大后，`b*(k)` 下降并提高有效聚合噪声，形成先升后降的真实 sweep 目标。
@@ -49,14 +50,14 @@ bash exp/exp2.0-onlinesearch/run_exp2_online_sweep.sh
 输出目录示例：
 
 ```text
-logs/experiments/exp2.0-onlinesearch/seed2026_r120_eps1e10_sig0.01_p1e6_g2.0_clip0.02/
+logs/experiments/exp2.0-onlinesearch/seed2026_r120_eps1e10_sig0.01_p1e6_g1.5_clip0.02_eftopk+randk/
 ```
 
 日志和 pid：
 
 ```text
-logs/experiment2_ratio_sweep_seed2026_r120_eps1e10_sig0.01_p1e6_g2.0_clip0.02.log
-logs/experiment2_ratio_sweep_seed2026_r120_eps1e10_sig0.01_p1e6_g2.0_clip0.02.pid
+logs/experiment2_ratio_sweep_seed2026_r120_eps1e10_sig0.01_p1e6_g1.5_clip0.02_eftopk+randk.log
+logs/experiment2_ratio_sweep_seed2026_r120_eps1e10_sig0.01_p1e6_g1.5_clip0.02_eftopk+randk.pid
 ```
 
 可改环境变量，例如：
