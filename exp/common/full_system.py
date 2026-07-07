@@ -68,17 +68,17 @@ class Config:
     topk_error_feedback: bool = True
     error_feedback_methods: Tuple[str, ...] = ("topk", "randk")
     randk_mask_mode: str = "common"
-    element_clip: float = 0.05
+    element_clip: float = 0.02
 
     # OFDM-AirComp-ADC.
     ofdm_subcarriers: int = 2000
     oversampling: int = 4
-    adc_backoff_gamma: float = 3.0
+    adc_backoff_gamma: float = 2.0
 
     # DP / power model. The default profile is intentionally privacy-bottleneck
     # visible: increasing k improves retained update information first, but also
     # reduces b*(k) and raises the effective aggregation noise.
-    epsilon: float = 1e8
+    epsilon: float = 1e10
     delta: float = 1e-3
     sigma0: float = 0.01
     h_th: float = 0.1
@@ -554,6 +554,7 @@ def main():
     parser.add_argument("--eta-tau-c", type=float, default=Config.eta_tau_C)
     parser.add_argument("--adc-backoff-gamma", type=float, default=Config.adc_backoff_gamma)
     parser.add_argument("--ofdm-subcarriers", type=int, default=Config.ofdm_subcarriers)
+    parser.add_argument("--element-clip", type=float, default=Config.element_clip)
     parser.add_argument("--error-feedback-methods", default="topk,randk")
     parser.add_argument("--randk-mask-mode", choices=("common", "independent"), default=Config.randk_mask_mode)
     args = parser.parse_args()
@@ -573,6 +574,7 @@ def main():
         eta_tau_C=args.eta_tau_c,
         adc_backoff_gamma=args.adc_backoff_gamma,
         ofdm_subcarriers=args.ofdm_subcarriers,
+        element_clip=args.element_clip,
         error_feedback_methods=tuple(x.strip() for x in args.error_feedback_methods.split(",") if x.strip()),
         randk_mask_mode=args.randk_mask_mode,
     )

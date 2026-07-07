@@ -331,6 +331,7 @@ def main() -> None:
     parser.add_argument("--eta-tau-c", type=float, default=BaseConfig.eta_tau_C)
     parser.add_argument("--adc-backoff-gamma", type=float, default=BaseConfig.adc_backoff_gamma)
     parser.add_argument("--ofdm-subcarriers", type=int, default=2000)
+    parser.add_argument("--element-clip", type=float, default=BaseConfig.element_clip)
     args = parser.parse_args()
 
     cfg = BaseConfig(
@@ -348,6 +349,7 @@ def main() -> None:
         eta_tau_C=args.eta_tau_c,
         adc_backoff_gamma=args.adc_backoff_gamma,
         ofdm_subcarriers=args.ofdm_subcarriers,
+        element_clip=args.element_clip,
     )
     if cfg.device.startswith("cuda") and not torch.cuda.is_available():
         cfg.device = "cpu"

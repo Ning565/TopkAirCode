@@ -61,6 +61,8 @@ def build_command(args, method: str, ratio: float, out_dir: Path) -> List[str]:
         str(args.p_max),
         "--adc-backoff-gamma",
         str(args.adc_backoff_gamma),
+        "--element-clip",
+        str(args.element_clip),
         "--randk-mask-mode",
         args.randk_mask_mode,
         "--output-dir",
@@ -161,6 +163,7 @@ def write_markdown(path: Path, rows: List[Dict], args) -> None:
         handle.write(f"- sigma0: `{args.sigma0}`\n")
         handle.write(f"- Pmax: `{args.p_max}`\n")
         handle.write(f"- ADC gamma: `{args.adc_backoff_gamma}`\n")
+        handle.write(f"- element clip: `{args.element_clip}`\n")
         handle.write(f"- Rand-k mask mode: `{args.randk_mask_mode}`\n")
         handle.write(f"- target accuracy for speed: `{args.target_accuracy}`\n\n")
 
@@ -228,13 +231,14 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--rounds", type=int, default=80)
     parser.add_argument("--eval-every", type=int, default=5)
-    parser.add_argument("--topk-ratios", default="0.05,0.10,0.15,0.20,0.25,0.35")
+    parser.add_argument("--topk-ratios", default="0.05,0.10,0.15,0.20,0.25,0.35,0.50,0.65")
     parser.add_argument("--randk-ratios", default="0.20,0.35,0.50,0.65,0.80")
     parser.add_argument("--include-full", action="store_true")
-    parser.add_argument("--epsilon", type=float, default=1e8)
+    parser.add_argument("--epsilon", type=float, default=1e10)
     parser.add_argument("--sigma0", type=float, default=0.01)
     parser.add_argument("--p-max", type=float, default=1e6)
-    parser.add_argument("--adc-backoff-gamma", type=float, default=3.0)
+    parser.add_argument("--adc-backoff-gamma", type=float, default=2.0)
+    parser.add_argument("--element-clip", type=float, default=0.02)
     parser.add_argument("--randk-mask-mode", choices=("common", "independent"), default="common")
     parser.add_argument("--target-accuracy", type=float, default=75.0)
     parser.add_argument("--output-dir", default="logs/experiments/exp2.0-onlinesearch/ratio_sweep")
