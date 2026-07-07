@@ -32,4 +32,6 @@
 
 长训练一律用 `setsid` 后台脚本启动，日志、pid 和原始中间输出默认写入 `logs/experiments/...`。
 
+实验一、实验二默认使用统一物理/隐私 profile：`epsilon=1e8`、`sigma0=0.01`、`Pmax=1e6`、`ADC gamma=3.0`。该 profile 用于验证压缩率先提升准确率、随后因隐私/信道噪声瓶颈下降的主线。
+
 只有经过确认要展示的最终表格、图和说明，才复制或生成到对应的 `exp/exp*-*/final/` 或 `exp/exp*-*/results/` 中。

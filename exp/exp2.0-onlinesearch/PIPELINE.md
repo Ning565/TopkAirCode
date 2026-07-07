@@ -19,6 +19,18 @@
 
 注意：Top-k 对 ADC 权重有一定敏感性，在中等 ADC 权重下最优点落在 `0.10-0.20`；因此真实训练 sweep 需要覆盖这一邻域。
 
+## 默认物理/隐私 profile
+
+后续实验默认使用同一组参数：
+
+- `epsilon=1e8`
+- `sigma0=0.01`
+- `Pmax=1e6`
+- `ADC gamma=3.0`
+- `Rand-k mask mode=common`
+
+该 profile 让 `b*(k)` 进入隐私约束区间：压缩率增大时，保留信息先增加；继续增大后，`b*(k)` 下降并提高有效聚合噪声，形成先升后降的真实 sweep 目标。
+
 ## 真实压缩率 sweep
 
 后台启动：
@@ -36,14 +48,14 @@ bash exp/exp2.0-onlinesearch/run_exp2_online_sweep.sh
 输出目录示例：
 
 ```text
-logs/experiments/exp2.0-onlinesearch/seed2026_r120/
+logs/experiments/exp2.0-onlinesearch/seed2026_r120_eps1e8_sig0.01_p1e6_g3.0/
 ```
 
 日志和 pid：
 
 ```text
-logs/experiment2_ratio_sweep_seed2026_r120.log
-logs/experiment2_ratio_sweep_seed2026_r120.pid
+logs/experiment2_ratio_sweep_seed2026_r120_eps1e8_sig0.01_p1e6_g3.0.log
+logs/experiment2_ratio_sweep_seed2026_r120_eps1e8_sig0.01_p1e6_g3.0.pid
 ```
 
 可改环境变量，例如：

@@ -75,9 +75,10 @@ class Config:
     oversampling: int = 4
     adc_backoff_gamma: float = 3.0
 
-    # DP / power model. Epsilon is deliberately permissive for the first
-    # convergence validation; later sweeps can tighten it.
-    epsilon: float = 1e10
+    # DP / power model. The default profile is intentionally privacy-bottleneck
+    # visible: increasing k improves retained update information first, but also
+    # reduces b*(k) and raises the effective aggregation noise.
+    epsilon: float = 1e8
     delta: float = 1e-3
     sigma0: float = 0.01
     h_th: float = 0.1
@@ -365,6 +366,7 @@ class OFDMAirCompADC:
             "papr_max_db": float(papr_db.max().item()),
             "clip_sample_ratio": clip_ratio,
             "normalized_clip_energy": float(clip_energy / (signal_energy + 1e-12)),
+            "effective_noise_std": float(cfg.sigma0 / (b_star * c + 1e-12)),
             "u_active_mean": float(active_u.mean()) if active_u.size else 0.0,
             "active_resource_ratio": float(np.mean(u > 0)),
         }

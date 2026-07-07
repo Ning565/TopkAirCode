@@ -10,21 +10,22 @@ SEED="${SEED:-2026}"
 ROUNDS="${ROUNDS:-120}"
 EVAL_EVERY="${EVAL_EVERY:-5}"
 EPSILON="${EPSILON:-1e8}"
-SIGMA0="${SIGMA0:-0.05}"
-P_MAX="${P_MAX:-1e4}"
-ADC_GAMMA="${ADC_GAMMA:-2.5}"
+SIGMA0="${SIGMA0:-0.01}"
+P_MAX="${P_MAX:-1e6}"
+ADC_GAMMA="${ADC_GAMMA:-3.0}"
 RANDK_MASK_MODE="${RANDK_MASK_MODE:-common}"
 
 # Ratios cover the current exp1-ksearch real-calibration optima and neighbors.
 TOPK_RATIOS="${TOPK_RATIOS:-0.05,0.10,0.15,0.20,0.25,0.35}"
 RANDK_RATIOS="${RANDK_RATIOS:-0.20,0.35,0.50,0.65,0.80}"
+PROFILE="eps${EPSILON}_sig${SIGMA0}_p${P_MAX}_g${ADC_GAMMA}"
 
-OUT_DIR="${OUT_DIR:-logs/experiments/exp2.0-onlinesearch/seed${SEED}_r${ROUNDS}}"
+OUT_DIR="${OUT_DIR:-logs/experiments/exp2.0-onlinesearch/seed${SEED}_r${ROUNDS}_${PROFILE}}"
 LOG_DIR="${LOG_DIR:-logs}"
 mkdir -p "$LOG_DIR"
-LOG_FILE="${LOG_FILE:-${LOG_DIR}/experiment2_ratio_sweep_seed${SEED}_r${ROUNDS}.log}"
-PID_FILE="${PID_FILE:-${LOG_DIR}/experiment2_ratio_sweep_seed${SEED}_r${ROUNDS}.pid}"
-CMD_FILE="${CMD_FILE:-${LOG_DIR}/experiment2_ratio_sweep_seed${SEED}_r${ROUNDS}.cmd.sh}"
+LOG_FILE="${LOG_FILE:-${LOG_DIR}/experiment2_ratio_sweep_seed${SEED}_r${ROUNDS}_${PROFILE}.log}"
+PID_FILE="${PID_FILE:-${LOG_DIR}/experiment2_ratio_sweep_seed${SEED}_r${ROUNDS}_${PROFILE}.pid}"
+CMD_FILE="${CMD_FILE:-${LOG_DIR}/experiment2_ratio_sweep_seed${SEED}_r${ROUNDS}_${PROFILE}.cmd.sh}"
 
 CMD=(
   "$PYTHON_BIN" exp/exp2.0-onlinesearch/sweep_ratios.py

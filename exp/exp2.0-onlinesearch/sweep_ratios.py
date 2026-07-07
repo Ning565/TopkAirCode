@@ -111,6 +111,7 @@ def read_metrics(path: Path, target_accuracy: float) -> Dict:
         "round_to_target": hit_round,
         "target_accuracy": target_accuracy,
         "b_star": float(last["b_star"]),
+        "effective_noise_std": float(last.get("effective_noise_std", 0.0)),
         "papr_p99_last": float(last["papr_p99_db"]),
         "clip_energy_last": float(last["normalized_clip_energy"]),
         "regime": last["regime"],
@@ -164,14 +165,15 @@ def write_markdown(path: Path, rows: List[Dict], args) -> None:
         handle.write(f"- target accuracy for speed: `{args.target_accuracy}`\n\n")
 
         handle.write("## 全部结果\n\n")
-        handle.write("| 方法 | k/d | final | best | best轮次 | 到达target轮次 | b* | NCE | 约束 |\n")
-        handle.write("|---|---:|---:|---:|---:|---:|---:|---:|---|\n")
+        handle.write("| 方法 | k/d | final | best | best轮次 | 到达target轮次 | b* | eff-noise | NCE | 约束 |\n")
+        handle.write("|---|---:|---:|---:|---:|---:|---:|---:|---:|---|\n")
         for row in rows:
             hit = "-" if row["round_to_target"] is None else str(row["round_to_target"])
             handle.write(
                 f"| {row['method']} | {row['ratio']:.2f} | {row['final_accuracy']:.2f} | "
                 f"{row['best_accuracy']:.2f} | {row['best_round']} | {hit} | "
-                f"{row['b_star']:.3e} | {row['clip_energy_last']:.2e} | {row['regime']} |\n"
+                f"{row['b_star']:.3e} | {row['effective_noise_std']:.2e} | "
+                f"{row['clip_energy_last']:.2e} | {row['regime']} |\n"
             )
 
         handle.write("\n## 按 final accuracy 的每方法最优\n\n")
@@ -230,9 +232,9 @@ def main() -> None:
     parser.add_argument("--randk-ratios", default="0.20,0.35,0.50,0.65,0.80")
     parser.add_argument("--include-full", action="store_true")
     parser.add_argument("--epsilon", type=float, default=1e8)
-    parser.add_argument("--sigma0", type=float, default=0.05)
-    parser.add_argument("--p-max", type=float, default=1e4)
-    parser.add_argument("--adc-backoff-gamma", type=float, default=2.5)
+    parser.add_argument("--sigma0", type=float, default=0.01)
+    parser.add_argument("--p-max", type=float, default=1e6)
+    parser.add_argument("--adc-backoff-gamma", type=float, default=3.0)
     parser.add_argument("--randk-mask-mode", choices=("common", "independent"), default="common")
     parser.add_argument("--target-accuracy", type=float, default=75.0)
     parser.add_argument("--output-dir", default="logs/experiments/exp2.0-onlinesearch/ratio_sweep")

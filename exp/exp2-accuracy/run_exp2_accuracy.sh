@@ -10,9 +10,9 @@ SEED="${SEED:-2026}"
 ROUNDS="${ROUNDS:-200}"
 EVAL_EVERY="${EVAL_EVERY:-1}"
 EPSILON="${EPSILON:-1e8}"
-SIGMA0="${SIGMA0:-0.05}"
-P_MAX="${P_MAX:-1e4}"
-ADC_GAMMA="${ADC_GAMMA:-2.5}"
+SIGMA0="${SIGMA0:-0.01}"
+P_MAX="${P_MAX:-1e6}"
+ADC_GAMMA="${ADC_GAMMA:-3.0}"
 RANDK_MASK_MODE="${RANDK_MASK_MODE:-common}"
 
 # Defaults are the current exp1-ksearch real-calibration optima for FEMNIST. Override after the ratio sweep if
@@ -20,15 +20,16 @@ RANDK_MASK_MODE="${RANDK_MASK_MODE:-common}"
 TOPK_RATIO="${TOPK_RATIO:-0.10}"
 RANDK_RATIO="${RANDK_RATIO:-0.50}"
 FULL_RATIO="${FULL_RATIO:-1.0}"
+PROFILE="eps${EPSILON}_sig${SIGMA0}_p${P_MAX}_g${ADC_GAMMA}"
 
-OUT_DIR="${OUT_DIR:-logs/experiments/exp2-accuracy/seed${SEED}_top${TOPK_RATIO}_rand${RANDK_RATIO}}"
+OUT_DIR="${OUT_DIR:-logs/experiments/exp2-accuracy/seed${SEED}_top${TOPK_RATIO}_rand${RANDK_RATIO}_${PROFILE}}"
 LOG_DIR="${LOG_DIR:-logs}"
 mkdir -p "$LOG_DIR"
 SAFE_TOP="${TOPK_RATIO//./p}"
 SAFE_RAND="${RANDK_RATIO//./p}"
-LOG_FILE="${LOG_FILE:-${LOG_DIR}/experiment2_convergence_seed${SEED}_top${SAFE_TOP}_rand${SAFE_RAND}.log}"
-PID_FILE="${PID_FILE:-${LOG_DIR}/experiment2_convergence_seed${SEED}_top${SAFE_TOP}_rand${SAFE_RAND}.pid}"
-CMD_FILE="${CMD_FILE:-${LOG_DIR}/experiment2_convergence_seed${SEED}_top${SAFE_TOP}_rand${SAFE_RAND}.cmd.sh}"
+LOG_FILE="${LOG_FILE:-${LOG_DIR}/experiment2_convergence_seed${SEED}_top${SAFE_TOP}_rand${SAFE_RAND}_${PROFILE}.log}"
+PID_FILE="${PID_FILE:-${LOG_DIR}/experiment2_convergence_seed${SEED}_top${SAFE_TOP}_rand${SAFE_RAND}_${PROFILE}.pid}"
+CMD_FILE="${CMD_FILE:-${LOG_DIR}/experiment2_convergence_seed${SEED}_top${SAFE_TOP}_rand${SAFE_RAND}_${PROFILE}.cmd.sh}"
 
 CMD=(
   "$PYTHON_BIN" exp/common/full_system.py
