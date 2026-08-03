@@ -1,0 +1,265 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+
+% 1. 先声明定理环境，避免 undefined 报错
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{remark}{Remark}
+\newtheorem{assumption}{Assumption}
+
+% 2. 仅对公式和图片加 A. 前缀，Lemma 和 Assumption 保持自然数字序号以匹配正文
+\renewcommand{\theequation}{A.\arabic{equation}}
+\renewcommand{\thefigure}{A.\arabic{figure}}
+
+\onecolumn 
+\allowdisplaybreaks
+
+\begin{document}
+
+\title{Technical Appendix: Proof of Convergence for Top-$k$ Sparsified AirComp Federated Learning}
+\author{Jinning Song and Dong Liu}
+\maketitle
+
+\section{Algorithm Flow and Assumptions}
+
+To facilitate the analysis, we first formally define the algorithm flow, error feedback mechanism, and core assumptions.
+Let $r = k/d$ be the sparsification ratio.
+
+\subsection{Algorithm Flow and Error Feedback Mechanism}
+Following the main text, the raw accumulated local update after $\tau$ SGD steps is defined as
+\begin{equation}
+    \Delta_i^t \triangleq u_i^t = -\eta \sum_{s=1}^{\tau} g_i^{t,s-1},
+\end{equation}
+where $g_i^{t,s-1}$ is the stochastic gradient satisfying Assumption~\ref{assum:variance}.
+To compensate for the bias introduced by top-$k$ compression and systemic clipping, each device maintains a local error memory $e_i^t$, initialized as $e_i^0 = 0$.
+The ``sparsification-then-clipping'' feedback mechanism proceeds as follows:
+\begin{enumerate}
+    \item \textbf{Compensation:} Form the ideal update $v_i^t = \Delta_i^t + e_i^{t-1}$.
+    \item \textbf{Sparsification:} Extract the sparse signal $\tilde{v}_i^t = \mathrm{Top}_k(v_i^t)$.
+    \item \textbf{Error Update:} The unselected residual is stored into the memory: $e_i^t = v_i^t - \tilde{v}_i^t$.
+    \item \textbf{Systemic Clipping:} The sparse signal is clipped for transmission: $s_i^t = \mathrm{clip}(\tilde{v}_i^t, \eta\tau C)$.
+\end{enumerate}
+Defining the systemic clipping bias as $\xi_i^t \triangleq \tilde{v}_i^t - s_i^t$, we obtain the exact algebraic relationship for the transmitted signal
+\begin{equation} \label{eqn:transmit_signal}
+    s_i^t = \tilde{v}_i^t - \xi_i^t = v_i^t - e_i^t - \xi_i^t = \Delta_i^t + e_i^{t-1} - e_i^t - \xi_i^t.
+\end{equation}
+
+\subsection{Core Assumptions}
+
+\begin{assumption}[\bf Smoothness and Lower Bound]
+    \label{assum:smoothness}
+    Each local loss function $f_i$ is $L$-smooth, and the global objective satisfies $f(\theta) \ge f^\ast > -\infty$ for all $\theta \in \mathbb{R}^d$.
+\end{assumption}
+
+\begin{assumption}[\bf Bounded Gradient Variance]
+    \label{assum:variance}
+    The variance of the local stochastic gradients satisfies $\mathbb{E}\big\lVert\nabla f_i(\theta_i^{t,s-1}; \mathcal{B}_i^{t, s}) - \nabla f_i(\theta_i^{t,s-1})\big\rVert_2^2 \le \zeta^2$. 
+\end{assumption}
+
+\begin{assumption}[\bf Bounded Heterogeneity]
+    \label{assum:heterogeneity}
+    There exist constants $G^2 \ge 1$ and $\kappa^2 \ge 0$ such that  $\frac{1}{N} \sum_{i=1}^N \left\lVert\nabla f_i(\theta)\right\rVert_2^2 \le G^2 \left\lVert\nabla f(\theta)\right\rVert_2^2 + \kappa^2$.
+\end{assumption}
+
+\begin{assumption}[\bf Bounded Clipping Bias]
+    \label{assum:clipping}
+    We note that $\beta$ implicitly depends on the clipping threshold $C$ and the tail behavior of the update distribution, but remains bounded under standard assumptions of bounded gradients or sub-Gaussian noise. The system-level clipping bias $\xi_i^t \triangleq \tilde{v}_i^t - s_i^t$ satisfies $\mathbb{E}\lVert\xi_i^t\rVert_2^2 \le \eta^2\tau^2 \beta^2$ for a constant $\beta > 0$ that depends on the clipping threshold $C$ and data distribution, but is independent of iteration $t$.
+\end{assumption}
+
+
+\section{Auxiliary Lemmas}
+For consistency with the main text, we continue the lemma numbering.
+
+% ==========================================
+\setcounter{lemma}{2} 
+% ==========================================
+
+\begin{lemma}[\bf Contraction Property of Top-$k$] \label{lemma:topk}
+For any input vector $v \in \mathbb{R}^d$, the deterministic compression error satisfies
+\begin{equation}
+    \|v - \mathrm{Top}_k(v)\|_2^2 \le (1 - r) \|v\|_2^2.
+\end{equation}
+\end{lemma}
+\begin{proof}
+Let the coordinates of $v$ be sorted by magnitude such that $v_{(1)}^2 \ge v_{(2)}^2 \ge \dots \ge v_{(d)}^2$. The error vector $v - \mathrm{Top}_k(v)$ consists exactly of the smallest $d-k$ elements. Because these elements have the smallest magnitudes, their average energy is inherently bounded by the average energy of the entire vector, given by
+\begin{equation}
+    \frac{1}{d-k} \sum_{j=k+1}^d v_{(j)}^2 \le \frac{1}{d} \sum_{j=1}^d v_{(j)}^2 = \frac{1}{d}\|v\|_2^2. \notag
+\end{equation}
+Multiplying both sides by $d-k$, we obtain $\|v - \mathrm{Top}_k(v)\|_2^2 \le \frac{d-k}{d} \|v\|_2^2 = (1-r) \|v\|_2^2$.
+\end{proof}
+
+\begin{lemma}[\bf Error Contraction Step] \label{lemma:error_step}
+Given $v_i^t = \Delta_i^t + e_i^{t-1}$ and $e_i^t = v_i^t - \mathrm{Top}_k(v_i^t)$, the error memory updating satisfies
+\begin{equation}
+    \mathbb{E}_t \|e_i^t\|_2^2 \le (1-r) \mathbb{E}_t \|\Delta_i^t + e_i^{t-1}\|_2^2.
+\end{equation}
+\end{lemma}
+\begin{proof}
+Taking the expectation on both sides of the deterministic property established in Lemma~\ref{lemma:topk} directly yields $\mathbb{E}_t\|e_i^t\|_2^2 = \mathbb{E}_t\|v_i^t - \mathrm{Top}_k(v_i^t)\|_2^2 \le (1-r)\mathbb{E}_t\|v_i^t\|_2^2$. Substituting the mechanism definition $v_i^t = \Delta_i^t + e_i^{t-1}$ directly completes the proof.
+\end{proof}
+
+\begin{lemma}[\bf Bounded Local Divergence] \label{lemma:local_div}
+Under Assumptions~\ref{assum:smoothness}--\ref{assum:heterogeneity}, the physical local model drift satisfies
+\begin{equation}
+    \frac{1}{N} \sum_{i=1}^N \mathbb{E}_t \|\theta^t - \theta_i^{t,s-1}\|_2^2 \le 16\eta^2\tau^2 G^2 \mathbb{E}_t \|\nabla f(\theta^t)\|_2^2 + 16\eta^2\tau^2 \kappa^2 + 4\tau\eta^2 \zeta^2.
+\end{equation}
+\end{lemma}
+\begin{proof}
+According to the local update rule $\theta_i^{t,p} = \theta_i^{t,p-1} - \eta g_i^{t,p-1}$ (where $p \ge 1$ denotes the local step running index) and the initial synchronization $\theta_i^{t,0} = \theta^t$, applying Young's inequality $\|a+b\|_2^2 \le (1+\gamma)\|a\|_2^2 + (1+\gamma^{-1})\|b\|_2^2$ with parameter $\gamma = \frac{1}{2\tau-1}$ yields
+\begin{align}
+    \mathbb{E}_t\|\theta_i^{t,p} - \theta^t\|_2^2 &= \mathbb{E}_t\|\theta_i^{t,p-1} - \theta^t - \eta g_i^{t,p-1}\|_2^2 \notag \\
+    &\le \Big(1+\frac{1}{2\tau-1}\Big)\mathbb{E}_t\|\theta_i^{t,p-1} - \theta^t\|_2^2 + 2\tau\eta^2\mathbb{E}_t\|g_i^{t,p-1}\|_2^2 \notag \\
+    &\le \Big(1+\frac{1}{2\tau-1}\Big)\mathbb{E}_t\|\theta_i^{t,p-1} - \theta^t\|_2^2 + 4\tau\eta^2\mathbb{E}_t\|\nabla f_i(\theta_i^{t,p-1})-\nabla f_i(\theta^t)\|_2^2 + 4\tau\eta^2\mathbb{E}_t\|\nabla f_i(\theta^t)\|_2^2 + \eta^2\zeta^2 \notag \\
+    &\le \Big(1+\frac{1}{2\tau-1} + 4\eta^2L^2\tau\Big)\mathbb{E}_t\|\theta_i^{t,p-1} - \theta^t\|_2^2 + 4\eta^2\tau\mathbb{E}_t\|\nabla f_i(\theta^t)\|_2^2 + \eta^2\zeta^2. \notag
+\end{align}
+Averaging over all clients $i \in [N]$, applying the dissimilarity Assumption~\ref{assum:heterogeneity} for $G^2$ and $\kappa^2$, and enforcing the learning rate condition $\eta \le \frac{1}{2\sqrt{2}\tau L}$ ensures $4\eta^2L^2\tau \le \frac{1}{2\tau} \le \frac{1}{2\tau-1}$. We obtain
+\begin{equation}
+    \frac{1}{N}\sum_{i=1}^N \mathbb{E}_t\|\theta_i^{t,p} - \theta^t\|_2^2 \le \Big(1+\frac{1}{\tau-1}\Big) \frac{1}{N}\sum_{i=1}^N \mathbb{E}_t\|\theta_i^{t,p-1} - \theta^t\|_2^2 + 4\eta^2\tau G^2\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2 + 4\eta^2\tau\kappa^2 + \eta^2\zeta^2. \notag
+\end{equation}
+Unrolling the recursion for the local model after $s-1$ updates, we get
+\begin{align}
+    \frac{1}{N}\sum_{i=1}^N \mathbb{E}_t\|\theta_i^{t,s-1} - \theta^t\|_2^2 &\le \sum_{p=0}^{s-2} \Big(1+\frac{1}{\tau-1}\Big)^p \Big[ 4\eta^2\tau G^2\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2 + 4\eta^2\tau\kappa^2 + \eta^2\zeta^2 \Big] \notag \\
+    &\le \frac{\big(1+\frac{1}{\tau-1}\big)^{\tau-1} - 1}{1/(\tau-1)} \times \Big[ 4\eta^2\tau G^2\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2 + 4\eta^2\tau\kappa^2 + \eta^2\zeta^2 \Big] \notag \\
+    &\le (\tau-1) \left[ \Big(1+\frac{1}{\tau-1}\Big)^{\tau} - 1 \right] \times \Big[ 4\eta^2\tau G^2\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2 + 4\eta^2\tau\kappa^2 + \eta^2\zeta^2 \Big] \notag \\
+    &\le C_0 \times \Big[ 4\eta^2\tau^2 G^2\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2 + 4\eta^2\tau^2\kappa^2 + \tau\eta^2\zeta^2 \Big] \notag \\
+    &\le 16\eta^2\tau^2 G^2\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2 + 16\eta^2\tau^2\kappa^2 + 4\tau\eta^2\zeta^2,
+\end{align}
+where $C_0$ is a universal numerical constant derived from the geometric limit $(1 + \frac{1}{\tau-1})^\tau \le e < 3$ (for $\tau > 1$), which is safely bounded by $C_0 \le 4$ to obtain the final clean constants. This holds for any $s \le \tau$, completing the proof.
+\end{proof}
+
+\begin{lemma}[\bf Error Memory Bound] \label{lemma:error_bound}
+The global average of the error memory is bounded by
+\begin{equation}
+    \frac{1}{N} \sum_{i=1}^N \mathbb{E}_t \|e_i^t\|_2^2 \le \mu \frac{1}{N} \sum_{i=1}^N \mathbb{E}_t \|\Delta_i^t\|_2^2,
+\end{equation}
+where $\mu = \frac{2(1-r)(2-r)}{r^2}$.
+\end{lemma}
+\begin{proof}
+Using Young's inequality $\|a + b\|_2^2 \le (1 + \alpha) \|a\|_2^2 + (1 + \alpha^{-1}) \|b\|_2^2$ with Lemma~\ref{lemma:error_step}, we introduce a free parameter $\alpha > 0$ and set $a = e_i^{t-1}$ and $b = \Delta_i^t$ to obtain
+\begin{equation}
+    \mathbb{E}_t\|e_i^t\|_2^2 \le (1-r)(1+\alpha)\mathbb{E}_t\|e_i^{t-1}\|_2^2 + (1-r)(1+\alpha^{-1})\mathbb{E}_t\|\Delta_i^t\|_2^2. \notag
+\end{equation}
+To ensure the error term rigorously contracts, we optimally choose $\alpha = \frac{r}{2(1-r)}$. The contraction factor mapping to the past error $e_i^{t-1}$ becomes $\rho = (1-r)(1+\alpha) = 1 - \frac{r}{2} = \frac{2-r}{2} < 1$. 
+Correspondingly, the coefficient mapping to the update term $\Delta_i^t$ expands to $\beta_{\mathrm{err}} = (1-r)(1+\alpha^{-1}) = (1-r)\left(1+\frac{2(1-r)}{r}\right) = \frac{(1-r)(2-r)}{r}$.
+Unrolling the geometric recursion over $t$ steps yields the finite amplification constant $\mu = \frac{\beta_{\mathrm{err}}}{1-\rho} = \frac{(1-r)(2-r)/r}{r/2} = \frac{2(1-r)(2-r)}{r^2}$.
+\end{proof}
+
+\section{Proof of Main Convergence Bound (Theorem 2)}
+
+\subsection{Construction of the Virtual Sequence and Separation}
+Define the global error memory $\bar{e}^{t-1} \triangleq \frac{1}{N} \sum_{i=1}^N e_i^{t-1}$ and the virtual global model $\tilde{\theta}^t = \theta^t + \bar{e}^{t-1}$, which completely absorbs the unsent Top-$k$ errors. This virtual sequence construction is a standard analytical technique for error-feedback mechanisms.
+From the physical update rule $\theta^{t+1} = \theta^t + \frac{1}{N} \sum_{i=1}^N s_i^t + \frac{z^t}{N b_t}$ and the exact structural relation~\eqref{eqn:transmit_signal}, the error feedback naturally cancels out, yielding the virtual recursion
+\begin{equation}
+    \tilde{\theta}^{t+1} = \tilde{\theta}^t + \frac{1}{N} \sum_{i=1}^N \Delta_i^t - \bar{\xi}^t + \frac{z^t}{N b_t},
+\end{equation}
+where $\bar{\xi}^t = \frac{1}{N} \sum_{i=1}^N \xi_i^t$.
+Applying the $L$-smoothness descent lemma yields the separation
+\begin{equation}
+    \mathbb{E}_t [f(\tilde{\theta}^{t+1}) - f(\tilde{\theta}^t)] \le \underbrace{\mathbb{E}_t \langle \nabla f(\tilde{\theta}^t), \frac{1}{N}\sum_{i}\Delta_i^t - \bar{\xi}^t \rangle}_{T_1} + \underbrace{\frac{L}{2} \mathbb{E}_t \Big\|\frac{1}{N}\sum_{i}\Delta_i^t - \bar{\xi}^t + \frac{z^t}{N b_t}\Big\|_2^2}_{T_2}.
+\end{equation}
+
+\subsection{Bounding $T_1$ and $T_2$}
+\subsubsection{Descent Direction $T_1$}
+Substituting $\Delta_i^t = -\eta \sum_{s=1}^{\tau} g_i^{t,s-1}$ and applying the unbiasedness of gradients, the primary gradient inner product formulation becomes
+\begin{equation}
+    \mathbb{E}_t \langle \nabla f(\tilde{\theta}^t), \frac{1}{N}\sum_{i}\Delta_i^t \rangle = -\eta\tau \mathbb{E}_t \langle \nabla f(\tilde{\theta}^t), \frac{1}{N\tau}\sum_{i,s}\nabla f_i(\theta_i^{t,s-1}) \rangle. \notag
+\end{equation}
+To decouple the global gradient from the local heterogeneous gradients, we apply the inner product identity $\langle a,b\rangle = \frac{1}{2}\|a\|_2^2+\frac{1}{2}\|b\|_2^2-\frac{1}{2}\|a-b\|_2^2$. This yields
+\begin{equation}
+    -\frac{\eta\tau}{2}\mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 - \frac{\eta\tau}{2}\mathbb{E}_t\Big\|\frac{1}{N\tau}\sum_{i,s}\nabla f_i(\theta_i^{t,s-1})\Big\|_2^2 + \frac{\eta\tau}{2}\mathbb{E}_t\Big\|\frac{1}{N\tau}\sum_{i,s}\big(\nabla f(\tilde{\theta}^t) - \nabla f_i(\theta_i^{t,s-1})\big)\Big\|_2^2. \notag
+\end{equation}
+Applying Jensen's inequality and $L$-smoothness to the last term produces the heterogeneity drift $\frac{\eta L^2}{2N} \sum_{i,s} \mathbb{E}_t \|\tilde{\theta}^t - \theta_i^{t,s-1}\|_2^2$.
+For the separate clipping bias term, applying Young's inequality $-\langle a,b\rangle \le \frac{\eta\tau}{4}\|a\|_2^2 + \frac{1}{\eta\tau}\|b\|_2^2$ alongside Assumption~\ref{assum:clipping} guarantees
+\begin{equation}
+    -\mathbb{E}_t\langle \nabla f(\tilde{\theta}^t), \bar{\xi}^t\rangle \le \frac{\eta\tau}{4}\mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 + \frac{1}{\eta\tau} (\eta^2\tau^2 \beta^2) = \frac{\eta\tau}{4}\mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 + \eta\tau\beta^2. \notag
+\end{equation}
+Summing the expanded terms, the primary gradient coefficient becomes $-\frac{\eta\tau}{2} + \frac{\eta\tau}{4} = -\frac{\eta\tau}{4}$, which we safely relax to $-\frac{\eta\tau}{8}$ to provide ample margin for absorbing the higher-order error terms introduced by delayed feedback. Hence,
+\begin{equation} \label{eqn:t1_bound}
+    T_1 \le -\frac{\eta\tau}{8} \mathbb{E}_t \|\nabla f(\tilde{\theta}^t)\|_2^2 + \frac{\eta L^2}{2N} \sum_{i,s} \mathbb{E}_t \|\tilde{\theta}^t - \theta_i^{t,s-1}\|_2^2 - \frac{\eta\tau}{2} \mathbb{E}_t \Big\|\frac{1}{N\tau}\sum_{i,s}\nabla f_i(\theta_i^{t,s-1})\Big\|_2^2 + \eta\tau\beta^2.
+\end{equation}
+
+\subsubsection{Variance and Noise $T_2$}
+To handle the variance components, we note that the privacy-preserving channel noise relies solely on its real part, i.e., $\mathrm{Re}\{n_m^t\} \sim \mathcal{N}(0, \sigma_0^2/2)$, implying $\mathbb{E}_{z^t}\|z^t\|_2^2 = d\frac{\sigma_0^2}{2}$. Thus, separating the zero-mean channel noise ($\mathbb{E}_{z^t}[z^t] = 0$) and sequentially applying the basic inequality $\|a-b\|_2^2 \le 2\|a\|_2^2+2\|b\|_2^2$, Jensen's inequality, and Assumption~\ref{assum:clipping}, we obtain
+\begin{equation}
+    T_2 \le L\frac{1}{N}\sum_{i}\mathbb{E}_t\|\Delta_i^t\|_2^2 + L\eta^2\tau^2\beta^2 + \frac{L\sigma_0^2 d}{4 N^2 b_t^2}.
+\end{equation}
+To rigorously bound the actual accumulated update $\mathbb{E}_t\|\Delta_i^t\|_2^2$, we expand the summation over $\tau$ steps using Jensen's inequality, and apply Assumptions~\ref{assum:variance} and \ref{assum:heterogeneity} to decompose the variance and heterogeneity to give
+\begin{align}
+    \frac{1}{N}\sum_{i=1}^N \mathbb{E}_t\|\Delta_i^t\|_2^2 &= \eta^2\tau^2 \left( \frac{1}{N}\sum_{i=1}^N \mathbb{E}_t\Big\|\frac{1}{\tau}\sum_{s=1}^{\tau} g_i^{t,s-1}\Big\|_2^2 \right) \notag \\
+    &\le \eta^2\tau \frac{1}{N}\sum_{i=1}^N \sum_{s=1}^{\tau} \mathbb{E}_t\|g_i^{t,s-1}\|_2^2 \notag \\
+    &\le \eta^2\tau \frac{1}{N}\sum_{i=1}^N \sum_{s=1}^{\tau} \left( \mathbb{E}_t\|\nabla f_i(\theta_i^{t,s-1})\|_2^2 + \zeta^2 \right) \notag \\
+    &\le \eta^2\tau \frac{1}{N}\sum_{i=1}^N \sum_{s=1}^{\tau} \left( 2L^2\mathbb{E}_t\|\theta_i^{t,s-1} - \tilde{\theta}^t\|_2^2 + 2\mathbb{E}_t\|\nabla f_i(\tilde{\theta}^t)\|_2^2 + \zeta^2 \right) \notag \\
+    &\le \eta^2\tau \sum_{s=1}^{\tau} \left( \frac{2L^2}{N}\sum_{i=1}^N\mathbb{E}_t\|\tilde{\theta}^t - \theta_i^{t,s-1}\|_2^2 + 2G^2\mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 + 2\kappa^2 + \zeta^2 \right).
+\end{align}
+Substituting this fully expanded bound back into the $T_2$ formulation yields the explicit form
+\begin{equation} \label{eqn:t2_bound}
+    T_2 \le 2L\eta^2\tau^2 G^2 \mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 + \frac{2L^3\eta^2\tau}{N}\sum_{i,s}\mathbb{E}_t\|\tilde{\theta}^t - \theta_i^{t,s-1}\|_2^2 + L\eta^2\tau^2(2\kappa^2+\zeta^2) + L\eta^2\tau^2\beta^2 + \frac{L\sigma_0^2 d}{4 N^2 b_t^2}.
+\end{equation}
+
+\subsection{Bounding the Virtual Local Divergence}
+Define the local divergence toward the virtual model as $D_t \triangleq \frac{1}{N}\sum_{i,s}\mathbb{E}_t\|\tilde{\theta}^t - \theta_i^{t,s-1}\|_2^2$.
+Using the algebraic decomposition $\tilde{\theta}^t - \theta_i^{t,s-1} = \bar{e}^{t-1} + (\theta^t - \theta_i^{t,s-1})$ and Lemma~\ref{lemma:local_div}, together with the gradient conversion bound $\|\nabla f(\theta^t)\|_2^2 \le 2\|\nabla f(\tilde{\theta}^t)\|_2^2 + 2L^2\|\bar{e}^{t-1}\|_2^2$, we obtain
+\begin{equation} \label{eqn:psi_bound}
+    D_t \le 64\eta^2\tau^3G^2 \mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 + 2\tau(1+32\eta^2\tau^2G^2 L^2) \mathbb{E}_t\|\bar{e}^{t-1}\|_2^2 + 32\eta^2\tau^3\kappa^2 + 8\tau^2\eta^2\zeta^2.
+\end{equation}
+
+\subsection{Learning Rate Conditions and Single-Step Descent}
+Combining $T_1$ and $T_2$, substituting $D_t$, and safely bounding the global error memory $\mathbb{E}_t\|\bar{e}^{t-1}\|_2^2$ via Lemma~\ref{lemma:error_bound} (using Jensen's inequality, $\|\bar{e}^{t-1}\|_2^2 \le \frac{1}{N}\sum_{i=1}^N \|e_i^{t-1}\|_2^2$), the total positive gradient penalty accumulates to
+\begin{equation}
+    C_{\nabla} = 2L\eta^2\tau^2G^2 + \eta L^2\Bigl(\frac12 + 2L\eta\tau\Bigr)\Bigl[64\eta^2\tau^3G^2 + 4\mu\eta^2\tau^3G^2(1+32\eta^2\tau^2G^2 L^2)\Bigr].
+\end{equation}
+For guaranteed convergence, we strictly enforce $C_{\nabla} \le \frac{\eta\tau}{16}$, which decomposes into the following sufficient conditions:
+\begin{enumerate}
+    \item $2L\eta\tau G^2 \le \frac{1}{32} \;\Rightarrow\; \eta \le \frac{1}{64L\tau G^2}$,
+    \item $\frac12 + 2L\eta\tau \le 1 \;\Rightarrow\; \eta \le \frac{1}{4L\tau}$,
+    \item $32\eta^2\tau^2G^2 L^2 \le 0.5 \;\Rightarrow\; \eta \le \frac{1}{8\tau G L}$,
+    \item $L^2\eta^2\tau^2G^2(64 + 6\mu) \le \frac{1}{32} \;\Rightarrow\; \eta \le \frac{1}{\tau G L\sqrt{2048+192\mu}}$.
+\end{enumerate}
+
+Noting that $G \ge 1$ holds by Assumption~\ref{assum:heterogeneity}, it is straightforward to verify that $\frac{1}{64L\tau G^2} < \min\left\{\frac{1}{4L\tau}, \frac{1}{8\tau G L}\right\}$. Therefore, conditions 2 and 3 are always strictly subsumed by condition 1. Consequently, the effective learning rate is governed purely by the bottleneck of conditions 1 and 4, which directly yields the simplified two-term constraint presented in the main text given by
+\begin{equation}
+    \eta \le \min \left\{ \frac{1}{64L\tau G^2}, \frac{1}{\tau G L\sqrt{2048+192\mu}} \right\}. \notag
+\end{equation}
+
+Under these exact constraints, the one-round descent formula simplifies elegantly to
+\begin{equation}
+    \mathbb{E}_t[f(\tilde{\theta}^{t+1}) - f(\tilde{\theta}^t)] \le -\frac{\eta\tau}{8}\mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 + \eta^2\tau^2 L \Psi (\kappa^2+\zeta^2) + \mathcal{E} + \frac{L\sigma_0^2 d}{4 N^2 b_t^2},
+\end{equation}
+where $\mathcal{E} \triangleq (\eta\tau + L\eta^2\tau^2)\beta^2$, and the intrinsic heterogeneity constant $\Psi$ is defined precisely as (assuming $\kappa^2+\zeta^2 > 0$; otherwise variance identically vanishes)
+\begin{equation}
+    \Psi \triangleq \frac{2\kappa^2+\zeta^2}{\kappa^2+\zeta^2} + \eta L\Bigl[ \frac{32\tau\kappa^2+8\zeta^2}{\kappa^2+\zeta^2} + 2\tau\mu(1+32\eta^2\tau^2 G^2 L^2)\frac{2\kappa^2+\zeta^2}{\kappa^2+\zeta^2} \Bigr].
+\end{equation}
+
+\subsection{Virtual Model Convergence}
+Telescoping the sum over $t=0,\dots,T-1$ and recognizing $f(\theta^0) = f(\tilde{\theta}^0)$, we define the initial distance $\Delta f \triangleq f(\theta^0) - f^\ast$. Rearranging the equation yields the tight virtual bound
+\begin{equation} \label{eqn:virtual_bound}
+    \frac1T\sum_{t=0}^{T-1}\mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 \le \frac{8\Delta f}{T\eta\tau} + 8\eta\tau L \Psi(\kappa^2+\zeta^2) + \frac{8\mathcal{E}}{\eta\tau} + \frac{2L\sigma_0^2 d}{T\eta\tau N^2}\sum_{t=0}^{T-1}\frac{1}{b_t^2}.
+\end{equation}
+
+\subsection{Conversion to the Physical Model}
+From the conversion $\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2 \le 2\mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 + 2L^2\mathbb{E}_t\|\bar{e}^{t-1}\|_2^2$, we explicitly define the error sequence $E_{t-1} \triangleq 2L^2\mathbb{E}_t\|\bar{e}^{t-1}\|_2^2$.
+Invoking Lemma~\ref{lemma:error_bound} (with Jensen's inequality) and substituting the exact bound of $D_{t-1}$, we establish a rigorous recursive contraction relation for the error sequence
+\begin{equation}
+    E_{t-1} \le 8L^2\mu\eta^2\tau^2 G^2 \mathbb{E}_t\|\nabla f(\tilde{\theta}^{t-1})\|_2^2 + 3L^2\mu\eta^2\tau^2(2\kappa^2+\zeta^2) + \rho E_{t-2},
+\end{equation}
+where the contraction factor is defined as $\rho \triangleq 6L^2\mu\eta^2\tau^2$. The rigorous learning rate constraints derived above strictly guarantee $\rho \le \frac{1}{32} \le 0.5$. 
+Unrolling this recursion over $T$ rounds and applying the bounding logic for geometric series sum $\frac{1}{1-\rho} \le 2$, we eliminate the recursive term to yield
+\begin{align}
+    \sum_{t=0}^{T-1} E_{t-1} &\le \frac{1}{1-\rho} \sum_{t=0}^{T-1} \left( 8L^2\mu\eta^2\tau^2 G^2 \mathbb{E}_t\|\nabla f(\tilde{\theta}^{t})\|_2^2 + 3L^2\mu\eta^2\tau^2(2\kappa^2+\zeta^2) \right) \notag \\
+    &\le 16L^2\mu\eta^2\tau^2 G^2 \sum_{t=0}^{T-1}\mathbb{E}_t\|\nabla f(\tilde{\theta}^t)\|_2^2 + 6L^2\mu\eta^2\tau^2 T(2\kappa^2+\zeta^2).
+\end{align}
+Substituting this sequence sum back gives the physical gradient amplification factor $\Gamma \triangleq 2 + 16L^2\mu\eta^2\tau^2 G^2$.
+Scaling~\eqref{eqn:virtual_bound} entirely by $\Gamma$ and correctly assigning the residual error-delay constants produces the final physical convergence bound
+\begin{align}
+    \frac1T\sum_{t=0}^{T-1}\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2 &\le \frac{2\Gamma L\sigma_0^2 d}{T\eta\tau N^2}\sum_{t=0}^{T-1}\frac{1}{b_t^2} + \Phi(k),\\
+    \Phi(k) &\triangleq \frac{8\Gamma \Delta f}{T\eta\tau} + \frac{8\Gamma\mathcal{E}}{\eta\tau} + 8\Gamma\eta\tau L \Psi(\kappa^2+\zeta^2) + 6L^2\mu\eta^2\tau^2(2\kappa^2+\zeta^2),
+\end{align}
+which completes the proof of Theorem~2.
+
+\end{document}

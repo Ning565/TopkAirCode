@@ -1,0 +1,1007 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+
+% Theorem environments
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newtheorem{remark}{Remark}
+\newtheorem{assumption}{Assumption}
+
+% Appendix-style numbering for equations and figures only
+\renewcommand{\theequation}{A.\arabic{equation}}
+\renewcommand{\thefigure}{A.\arabic{figure}}
+
+\onecolumn
+\allowdisplaybreaks
+
+\begin{document}
+
+\title{Technical Appendix: Proof of Convergence for ADC-Aware Top-$k$ Sparsified AirComp Federated Learning}
+\author{Jinning Song and Dong Liu}
+\maketitle
+
+\section{Algorithm Flow and Assumptions}
+
+To facilitate the convergence analysis, we first formalize the algorithm flow, the ADC-aware OFDM-AirComp aggregation model, and the assumptions used in the proof. Throughout this appendix, the global objective is
+\begin{equation}
+    f(\theta) \triangleq \frac{1}{N}\sum_{i=1}^{N} f_i(\theta),
+\end{equation}
+where $\theta\in\mathbb{R}^d$ is the global model parameter. We use a mechanism index
+\begin{equation}
+    A\in\{\mathrm{Top}\text{-}k,\mathrm{Rand}\text{-}k,\mathrm{Full}\}
+\end{equation}
+to unify the proposed top-$k$ mechanism and the baseline mechanisms. The proposed method corresponds to $A=\mathrm{Top}\text{-}k$. The full-update case is recovered by setting $k=d$ and $\mathcal{S}_{\mathrm{Full}}^d(v)=v$.
+
+The convergence bound is stated for a generic admissible mechanism $A$. The mechanism-specific learning advantage is captured by a certified energy-retention contraction coefficient $\bar{\omega}_A(k)$ that is valid along the training trajectory, while the mechanism-specific hardware effect is captured by the ADC residual functional $E_{\mathrm{clip},A}^t(k,b_t)$ and its support-overlap interpretation. In the proof, $\bar{\omega}_A(k)$ is used as a uniform lower bound, not merely as an a posteriori time-average statistic. Empirical retained-energy averages can be used in the main-text design as calibration surrogates, but the theorem itself relies on the certified contraction condition stated in Assumption~\ref{assum:contraction}.
+
+\subsection{Algorithm Flow and Error Feedback Mechanism}
+
+At the beginning of round $t$, client $i$ initializes its local model as
+\begin{equation}
+    \theta_i^{t,0}=\theta^t.
+\end{equation}
+It then performs $\tau$ local SGD steps
+\begin{equation}
+    \theta_i^{t,s}=\theta_i^{t,s-1}-\eta g_i^{t,s-1},
+    \qquad s=1,\ldots,\tau,
+\end{equation}
+where $g_i^{t,s-1}$ denotes the stochastic gradient evaluated on the local mini-batch at step $s$. The raw accumulated local update is
+\begin{equation}
+    \Delta_i^t\triangleq u_i^t
+    =\theta_i^{t,\tau}-\theta^t
+    =-\eta\sum_{s=1}^{\tau}g_i^{t,s-1}.
+\end{equation}
+
+Each device maintains a local error memory $e_i^t$, initialized as $e_i^{-1}=\mathbf{0}$. The sparsification-then-clipping mechanism proceeds as follows:
+\begin{enumerate}
+    \item \textbf{Compensation:} form the compensated update
+    \begin{equation}
+        v_i^t=\Delta_i^t+e_i^{t-1}.
+    \end{equation}
+    \item \textbf{Mechanism-dependent sparsification:} apply
+    \begin{equation}
+        \tilde v_{A,i}^t(k)=\mathcal{S}_A^k(v_i^t).
+    \end{equation}
+    For $A=\mathrm{Top}\text{-}k$, $\mathcal{S}_A^k$ keeps the $k$ largest-magnitude entries. For $A=\mathrm{Rand}\text{-}k$, it keeps $k$ randomly selected entries. For $A=\mathrm{Full}$, $k=d$ and no sparsification is applied.
+    \item \textbf{Error-memory update:} store only the sparsification residual
+    \begin{equation}
+        e_i^t=v_i^t-\tilde v_{A,i}^t(k).
+    \end{equation}
+    \item \textbf{Pre-transmission clipping:} clip the sparse update element-wise as
+    \begin{equation}
+        s_{A,i}^t(k)=\mathrm{clip}\big(\tilde v_{A,i}^t(k),\eta\tau C\big).
+    \end{equation}
+\end{enumerate}
+The clipping step guarantees
+\begin{equation}
+    \|s_{A,i}^t(k)\|_0\le k,
+    \qquad
+    \|s_{A,i}^t(k)\|_{\infty}\le \eta\tau C.
+\end{equation}
+We define the pre-transmission clipping bias as
+\begin{equation}
+    \xi_{A,i}^t(k)\triangleq \tilde v_{A,i}^t(k)-s_{A,i}^t(k).
+\end{equation}
+Then the transmitted signal admits the exact decomposition
+\begin{equation}
+    \label{eqn:transmit_signal}
+    s_{A,i}^t(k)
+    =\Delta_i^t+e_i^{t-1}-e_i^t-\xi_{A,i}^t(k).
+\end{equation}
+The clipping residual is not fed back into $e_i^t$, which prevents clipping distortion from being recursively accumulated by the error-feedback memory.
+
+\subsection{ADC-Aware OFDM-AirComp Aggregation Model}
+
+The sparse vector $s_{A,i}^t(k)$ is mapped onto $S=\lceil d/M\rceil$ OFDM symbols, each containing $M$ data subcarriers. Let $S_{A,i,\ell}^t[m;k]$ denote the entry transmitted by client $i$ on the $m$-th data subcarrier of the $\ell$-th OFDM symbol. If $S_{A,i,\ell}^t[m;k]=0$, client $i$ remains silent on that subcarrier.
+
+Conditioned on successful channel inversion for active transmissions, the frequency-domain AirComp signal is
+\begin{equation}
+    Y_{A,\ell}^t[m;k,b_t]
+    =b_t\sum_{i=1}^{N}S_{A,i,\ell}^t[m;k]+N_\ell^t[m],
+\end{equation}
+where $b_t>0$ is the AirComp power scaling factor and
+\begin{equation}
+    N_\ell^t[m]\sim\mathcal{CN}(0,\sigma_0^2)
+\end{equation}
+is the complex channel noise. The real part of the noise contributes to the recovered real-valued model update. The channel noise is conditionally zero-mean given the round-level filtration defined below.
+
+Let $Q=L_{\mathrm{os}}M$, where $L_{\mathrm{os}}$ is the oversampling factor. Let $\mathbf{Y}_{A,\ell,\mathrm{os}}^t[k,b_t]\in\mathbb{C}^{Q}$ be the zero-padded oversampled frequency-domain vector obtained from the $M$ data subcarriers. With a unitary $Q$-point IFFT, the time-domain ADC input waveform is
+\begin{equation}
+    y_{A,\ell}^t[n;k,b_t]
+    =\mathrm{IFFT}_{Q}^{\mathrm u}\!\left(\mathbf{Y}_{A,\ell,\mathrm{os}}^t[k,b_t]\right)[n],
+    \qquad n=0,\ldots,Q-1.
+\end{equation}
+The ADC applies the radial clipping operator
+\begin{equation}
+    \mathcal{C}_{\mathrm{adc}}(y)=
+    \begin{cases}
+        y, & |y|\le A_{\max},\\
+        A_{\max}e^{j\angle y}, & |y|>A_{\max}.
+    \end{cases}
+\end{equation}
+The time-domain clipping residual is
+\begin{equation}
+    r_{\mathrm{clip},A,\ell}^t[n;k,b_t]
+    =\mathcal{C}_{\mathrm{adc}}\big(y_{A,\ell}^t[n;k,b_t]\big)-y_{A,\ell}^t[n;k,b_t].
+\end{equation}
+The exact waveform-level clipping residual energy is
+\begin{equation}
+    \label{eqn:eclip_def}
+    E_{\mathrm{clip},A}^t(k,b_t)
+    =\sum_{\ell=1}^{S}\sum_{n=0}^{Q-1}
+    \left(|y_{A,\ell}^t[n;k,b_t]|-A_{\max}\right)_+^2.
+\end{equation}
+
+After ADC clipping, the receiver applies a unitary FFT. Let $\mathbf{R}_{\mathrm{clip},A,\ell}^t$ denote the frequency-domain transform of the clipping residual on OFDM symbol $\ell$, and let $\mathbf{R}_{\mathrm{clip},A,\mathcal{D}}^t$ denote its projection onto all data subcarriers after discarding padded inactive entries. The equivalent ADC aggregation error is
+\begin{equation}
+    e_{\mathrm{adc},A}^t
+    =\frac{\mathrm{Re}\{\mathbf{R}_{\mathrm{clip},A,\mathcal{D}}^t\}}{b_tN}.
+\end{equation}
+The channel-noise aggregation error is
+\begin{equation}
+    e_{\mathrm{ch}}^t=\frac{\mathrm{Re}\{\mathbf{N}_{\mathcal{D}}^t\}}{b_tN},
+    \qquad
+    \mathbb{E}\|e_{\mathrm{ch}}^t\|_2^2
+    =\frac{d\sigma_0^2}{2b_t^2N^2}.
+\end{equation}
+Therefore, the actual physical global update is
+\begin{equation}
+    \label{eqn:physical_update_adc}
+    \theta^{t+1}
+    =\theta^t+\frac1N\sum_{i=1}^{N}s_{A,i}^t(k)
+    +e_{\mathrm{ch}}^t+e_{\mathrm{adc},A}^t.
+\end{equation}
+
+Let $\mathcal{F}_t$ denote the round-level filtration generated by $\theta^t$, the error memories $\{e_i^{t-1}\}_{i=1}^{N}$, and all randomness before round $t$. It does not include the current-round mini-batch sampling, sparsification randomness, channel noise, or ADC clipping residual. We write
+\begin{equation}
+    \mathbb{E}_t[\cdot]\triangleq \mathbb{E}[\cdot\mid\mathcal{F}_t].
+\end{equation}
+Intermediate local-step conditional expectations are handled by the tower property using local histories $\mathcal{H}_i^{t,s-1}$.
+
+\subsection{Core Assumptions}
+
+\begin{assumption}[\bf Smoothness and Lower Bound]
+    \label{assum:smoothness}
+    Each local objective $f_i$ is $L$-smooth, and the global objective satisfies $f(\theta)\ge f^*>-\infty$ for all $\theta\in\mathbb{R}^d$.
+\end{assumption}
+
+\begin{assumption}[\bf Unbiased Stochastic Gradient]
+    \label{assum:unbiased}
+    Let $\mathcal{H}_{i}^{t,s-1}$ denote the local history before sampling the mini-batch at local step $s$ of round $t$. The stochastic gradient satisfies
+    \begin{equation}
+        \mathbb{E}\left[g_i^{t,s-1}\mid\mathcal{H}_{i}^{t,s-1}\right]
+        =\nabla f_i(\theta_i^{t,s-1}).
+    \end{equation}
+\end{assumption}
+
+\begin{assumption}[\bf Bounded Gradient Variance]
+    \label{assum:variance}
+    The stochastic gradient variance satisfies
+    \begin{equation}
+        \mathbb{E}\left[
+        \|g_i^{t,s-1}-\nabla f_i(\theta_i^{t,s-1})\|_2^2
+        \mid\mathcal{H}_{i}^{t,s-1}
+        \right]\le \zeta^2.
+    \end{equation}
+\end{assumption}
+
+\begin{assumption}[\bf Bounded Heterogeneity]
+    \label{assum:heterogeneity}
+    There exist constants $G^2\ge 1$ and $\kappa^2\ge0$ such that
+    \begin{equation}
+        \frac1N\sum_{i=1}^{N}\|\nabla f_i(\theta)\|_2^2
+        \le G^2\|\nabla f(\theta)\|_2^2+\kappa^2.
+    \end{equation}
+\end{assumption}
+
+\begin{assumption}[\bf Bounded Pre-Transmission Clipping Bias]
+    \label{assum:clipping}
+    The clipping bias satisfies
+    \begin{equation}
+        \mathbb{E}_t\|\xi_{A,i}^t(k)\|_2^2
+        \le \eta^2\tau^2\beta_A^2(k),
+        \qquad \forall i,t,
+    \end{equation}
+    where $\beta_A(k)$ depends on the clipping threshold, the sparsification mechanism, and the data distribution, but is independent of $t$.
+\end{assumption}
+
+\begin{assumption}[\bf Certified Energy-Retention Contraction]
+    \label{assum:contraction}
+    For each admissible mechanism $A$, there exists a certified contraction coefficient $\bar{\omega}_A(k)\in(0,1]$ such that, for all clients and all rounds along the training trajectory,
+    \begin{equation}
+        \mathbb{E}_t\|v_i^t-\mathcal{S}_A^k(v_i^t)\|_2^2
+        \le
+        \big(1-\bar{\omega}_A(k)\big)\mathbb{E}_t\|v_i^t\|_2^2,
+        \qquad \forall i,t.
+    \end{equation}
+    Thus $\bar{\omega}_A(k)$ is a trajectory-wise lower bound used to close the error-feedback recursion. It should not be understood as only the empirical time-average retained-energy ratio. In implementation, one may estimate an empirical retained-energy statistic for design, but the proof requires the above uniform contraction condition or a certified lower envelope of the per-round coefficients.
+
+    For uniform Rand-$k$ without rescaling, $\bar{\omega}_{\mathrm{Rand}}(k)=k/d$ under uniform coordinate sampling. For Top-$k$,
+    \begin{equation}
+        \frac{\|\mathrm{Top}_k(v)\|_2^2}{\|v\|_2^2}\ge \frac{k}{d},
+    \end{equation}
+    and $\bar{\omega}_{\mathrm{Top}}(k)$ can be larger than $k/d$ when the update energy is concentrated on important coordinates. For the full-update mechanism, $\bar{\omega}_{\mathrm{Full}}(d)=1$.
+\end{assumption}
+
+\begin{assumption}[\bf ADC Residual Measurability and Finite Energy]
+    \label{assum:adc_residual}
+    The expected ADC clipping residual energy is finite, i.e.,
+    \begin{equation}
+        \mathbb{E}\left[E_{\mathrm{clip},A}^t(k,b_t)\right]<\infty.
+    \end{equation}
+    The ADC aggregation error $e_{\mathrm{adc},A}^t$ is not assumed to be zero-mean and is not assumed to be independent of the channel noise or local updates.
+\end{assumption}
+
+\begin{assumption}[\bf AirComp Alignment Conditioning]
+    \label{assum:no_outage}
+    The convergence proof is conditioned on the event that all scheduled active transmissions satisfy the truncated channel inversion criterion and hence the pre-equalized alignment $h_{i,\ell,m}^tw_{i,\ell,m}^t=b_t$ holds.
+\end{assumption}
+
+Let $\mathcal{A}_t$ denote the successful alignment event in round $t$ and define
+\begin{equation}
+    \mathcal{A}_{0:T-1}\triangleq \bigcap_{t=0}^{T-1}\mathcal{A}_t.
+\end{equation}
+All convergence statements are understood under the probability measure conditioned on $\mathcal{A}_{0:T-1}$. If outage events are retained explicitly, an additional outage aggregation error term should be added to the final bound.
+
+\section{Auxiliary Lemmas}
+
+For consistency with the main text, we continue the lemma numbering.
+\setcounter{lemma}{2}
+
+\begin{lemma}[\bf Effective Contraction Step]
+    \label{lemma:topk}
+    Under Assumption~\ref{assum:contraction}, for every client $i$ and round $t$,
+    \begin{equation}
+        \mathbb{E}_t\|e_i^t\|_2^2
+        \le
+        \big(1-\bar{\omega}_A(k)\big)
+        \mathbb{E}_t\|\Delta_i^t+e_i^{t-1}\|_2^2.
+    \end{equation}
+\end{lemma}
+\begin{proof}
+    Since $e_i^t=v_i^t-\mathcal{S}_A^k(v_i^t)$ and $v_i^t=\Delta_i^t+e_i^{t-1}$, the claim follows directly from Assumption~\ref{assum:contraction}.
+\end{proof}
+
+\begin{lemma}[\bf Cumulative Error Memory Bound]
+    \label{lemma:error_bound}
+    Under Assumption~\ref{assum:contraction}, the cumulative error memory satisfies
+    \begin{equation}
+        \sum_{t=0}^{T-1}\frac1N\sum_{i=1}^{N}\mathbb{E}\|e_i^t\|_2^2
+        \le
+        \mu_A(k)
+        \sum_{t=0}^{T-1}\frac1N\sum_{i=1}^{N}\mathbb{E}\|\Delta_i^t\|_2^2,
+    \end{equation}
+    where, for $0<\bar{\omega}_A(k)<1$,
+    \begin{equation}
+        \label{eqn:mu_def}
+        \mu_A(k)
+        =\frac{2(1-\bar{\omega}_A(k))(2-\bar{\omega}_A(k))}{\bar{\omega}_A^2(k)}.
+    \end{equation}
+    For $\bar{\omega}_A(k)=1$, the compression residual vanishes and $\mu_A(k)=0$.
+\end{lemma}
+\begin{proof}
+    The full-update case is immediate. For $0<\bar{\omega}_A(k)<1$, Lemma~\ref{lemma:topk} and Young's inequality imply that, for any $\alpha>0$,
+    \begin{align}
+        \mathbb{E}\|e_i^t\|_2^2
+        &\le
+        \big(1-\bar{\omega}_A(k)\big)(1+\alpha)\mathbb{E}\|e_i^{t-1}\|_2^2
+        \notag\\
+        &\quad+
+        \big(1-\bar{\omega}_A(k)\big)(1+\alpha^{-1})\mathbb{E}\|\Delta_i^t\|_2^2.
+    \end{align}
+    Choose
+    \begin{equation}
+        \alpha=\frac{\bar{\omega}_A(k)}{2(1-\bar{\omega}_A(k))}.
+    \end{equation}
+    Then the recursion coefficient is
+    \begin{equation}
+        \varrho_A(k)
+        =\big(1-\bar{\omega}_A(k)\big)(1+\alpha)
+        =1-\frac{\bar{\omega}_A(k)}{2}<1,
+    \end{equation}
+    and the innovation coefficient is
+    \begin{equation}
+        \beta_{\mathrm{err},A}(k)
+        =\big(1-\bar{\omega}_A(k)\big)(1+\alpha^{-1})
+        =\frac{(1-\bar{\omega}_A(k))(2-\bar{\omega}_A(k))}{\bar{\omega}_A(k)}.
+    \end{equation}
+    Since $e_i^{-1}=\mathbf{0}$, unrolling the recursion and summing over $t$ give
+    \begin{equation}
+        \sum_{t=0}^{T-1}\mathbb{E}\|e_i^t\|_2^2
+        \le
+        \frac{\beta_{\mathrm{err},A}(k)}{1-\varrho_A(k)}
+        \sum_{t=0}^{T-1}\mathbb{E}\|\Delta_i^t\|_2^2
+        =\mu_A(k)\sum_{t=0}^{T-1}\mathbb{E}\|\Delta_i^t\|_2^2.
+    \end{equation}
+    Averaging over clients completes the proof.
+\end{proof}
+
+\begin{lemma}[\bf Bounded Local Divergence]
+    \label{lemma:local_div}
+    Under Assumptions~\ref{assum:smoothness}--\ref{assum:heterogeneity}, if $\tau\ge2$ and $\eta\le 1/(2\sqrt{2}\tau L)$, then for every local step $s\le\tau$,
+    \begin{align}
+        \frac1N\sum_{i=1}^{N}\mathbb{E}_t\|\theta^t-\theta_i^{t,s-1}\|_2^2
+        &\le
+        16\eta^2\tau^2G^2\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2
+        \notag\\
+        &\quad+16\eta^2\tau^2\kappa^2+4\tau\eta^2\zeta^2.
+    \end{align}
+\end{lemma}
+\begin{proof}
+    Define $d_i^{t,p}=\theta_i^{t,p}-\theta^t$. Then $d_i^{t,0}=\mathbf{0}$ and
+    \begin{equation}
+        d_i^{t,p}=d_i^{t,p-1}-\eta g_i^{t,p-1}.
+    \end{equation}
+    Decompose $g_i^{t,p-1}=\nabla f_i(\theta_i^{t,p-1})+\varepsilon_i^{t,p-1}$, where the noise term is conditionally zero-mean and has conditional variance bounded by $\zeta^2$. Following the standard local-SGD drift argument, Young's inequality with parameter $(2\tau-1)^{-1}$ gives
+    \begin{align}
+        \mathbb{E}_t\|d_i^{t,p}\|_2^2
+        &\le
+        \left(1+\frac{1}{2\tau-1}+4\eta^2L^2\tau\right)
+        \mathbb{E}_t\|d_i^{t,p-1}\|_2^2
+        \notag\\
+        &\quad+4\eta^2\tau\mathbb{E}_t\|\nabla f_i(\theta^t)\|_2^2+\eta^2\zeta^2.
+    \end{align}
+    Averaging over clients, using Assumption~\ref{assum:heterogeneity}, and applying $\eta\le 1/(2\sqrt{2}\tau L)$ yield
+    \begin{align}
+        \frac1N\sum_{i=1}^{N}\mathbb{E}_t\|d_i^{t,p}\|_2^2
+        &\le
+        \left(1+\frac{1}{\tau-1}\right)
+        \frac1N\sum_{i=1}^{N}\mathbb{E}_t\|d_i^{t,p-1}\|_2^2
+        \notag\\
+        &\quad+4\eta^2\tau G^2\mathbb{E}_t\|\nabla f(\theta^t)\|_2^2
+        +4\eta^2\tau\kappa^2+\eta^2\zeta^2.
+    \end{align}
+    Unrolling for at most $\tau-1$ steps and using $(1+1/(\tau-1))^{\tau}\le4$ gives the result.
+\end{proof}
+
+\begin{lemma}[\bf ADC Aggregation Error Bound]
+    \label{lemma:adc_error}
+    Under the unitary FFT/IFFT operations and the ADC clipping residual definition, the equivalent ADC aggregation error satisfies the pathwise inequality
+    \begin{equation}
+        \|e_{\mathrm{adc},A}^t\|_2^2
+        \le
+        \frac{E_{\mathrm{clip},A}^t(k,b_t)}{b_t^2N^2}.
+    \end{equation}
+    Consequently,
+    \begin{equation}
+        \mathbb{E}_t\|e_{\mathrm{adc},A}^t\|_2^2
+        \le
+        \frac{\mathbb{E}_t[E_{\mathrm{clip},A}^t(k,b_t)]}{b_t^2N^2}.
+    \end{equation}
+\end{lemma}
+\begin{proof}
+    By definition,
+    \begin{equation}
+        \|e_{\mathrm{adc},A}^t\|_2^2
+        =\frac{\|\mathrm{Re}\{\mathbf{R}_{\mathrm{clip},A,\mathcal{D}}^t\}\|_2^2}{b_t^2N^2}.
+    \end{equation}
+    Taking the real part and projecting onto data subcarriers cannot increase energy. Hence,
+    \begin{equation}
+        \|\mathrm{Re}\{\mathbf{R}_{\mathrm{clip},A,\mathcal{D}}^t\}\|_2^2
+        \le
+        \sum_{\ell=1}^{S}\|\mathbf{R}_{\mathrm{clip},A,\ell}^t\|_2^2.
+    \end{equation}
+    Parseval's theorem under unitary FFT/IFFT normalization gives
+    \begin{equation}
+        \sum_{\ell=1}^{S}\|\mathbf{R}_{\mathrm{clip},A,\ell}^t\|_2^2
+        =\sum_{\ell=1}^{S}\|\mathbf{r}_{\mathrm{clip},A,\ell}^t\|_2^2
+        =E_{\mathrm{clip},A}^t(k,b_t).
+    \end{equation}
+    Combining these inequalities proves the pathwise result. Taking conditional expectation gives the second claim.
+\end{proof}
+
+\begin{lemma}[\bf Selection-to-Peak Stress Bound]
+    \label{lemma:peak_stress}
+    Define the subcarrier concurrency
+    \begin{equation}
+        U_{A,\ell,m}^t(k)=\sum_{i=1}^{N}\mathbf{1}\{S_{A,i,\ell}^t[m;k]\neq0\},
+    \end{equation}
+    and the peak-stress quantity
+    \begin{equation}
+        \Omega_{A,\ell}^t(k)=\sum_{m=0}^{M-1}\big(U_{A,\ell,m}^t(k)\big)^2.
+    \end{equation}
+    Let
+    \begin{equation}
+        G_{A,\ell}^t[m;k]=\sum_{i=1}^{N}S_{A,i,\ell}^t[m;k]
+    \end{equation}
+    be the noiseless aggregated frequency-domain signal before multiplication by $b_t$. Then the noiseless time-domain signal satisfies
+    \begin{equation}
+        \max_n\left|y_{A,\ell,\mathrm{sig}}^t[n;k,b_t]\right|^2
+        \le
+        b_t^2\eta^2\tau^2C^2\Omega_{A,\ell}^t(k).
+    \end{equation}
+\end{lemma}
+\begin{proof}
+    Since $|S_{A,i,\ell}^t[m;k]|\le\eta\tau C$,
+    \begin{equation}
+        |G_{A,\ell}^t[m;k]|\le \eta\tau C\,U_{A,\ell,m}^t(k).
+    \end{equation}
+    Hence
+    \begin{equation}
+        \|\mathbf{G}_{A,\ell,\mathrm{os}}^t(k)\|_2^2
+        =\|\mathbf{G}_{A,\ell}^t(k)\|_2^2
+        \le \eta^2\tau^2C^2\Omega_{A,\ell}^t(k).
+    \end{equation}
+    A unitary IFFT preserves the Euclidean norm, and the maximum entry magnitude is upper-bounded by the vector norm. Multiplying by $b_t^2$ proves the result.
+\end{proof}
+
+\begin{lemma}[\bf Pairwise Support Overlap Identity]
+    \label{lemma:overlap}
+    Let $\mathcal{K}_{A,i}^t(k)$ be the selected support of device $i$ in round $t$, and let $\mathcal{I}_{A,i}^t(k)\subseteq\mathcal{K}_{A,i}^t(k)$ be the actually active nonzero support after sparsification and pre-transmission clipping. Define
+    \begin{equation}
+        \Omega_A^t(k)=\sum_{\ell=1}^{S}\Omega_{A,\ell}^t(k).
+    \end{equation}
+    Then
+    \begin{align}
+        \mathbb{E}[\Omega_A^t(k)]
+        &=\sum_{i=1}^{N}\mathbb{E}\big[|\mathcal{I}_{A,i}^t(k)|\big]
+        \notag\\
+        &\quad+
+        \sum_{i\neq j}\mathbb{E}\big[|\mathcal{I}_{A,i}^t(k)\cap\mathcal{I}_{A,j}^t(k)|\big].
+    \end{align}
+    If each selected support has cardinality $k$ and the active support coincides with the selected support, define
+    \begin{equation}
+        \rho_A^t(k)
+        =\frac{1}{N(N-1)k}
+        \sum_{i\neq j}\mathbb{E}\big[|\mathcal{K}_{A,i}^t(k)\cap\mathcal{K}_{A,j}^t(k)|\big].
+    \end{equation}
+    In this ideal exactly-$k$ case,
+    \begin{equation}
+        \mathbb{E}[\Omega_A^t(k)]
+        =Nk+N(N-1)k\rho_A^t(k).
+    \end{equation}
+    More generally, when clipping or zero-valued selected entries reduce the active support so that $|\mathcal{I}_{A,i}^t(k)|\le k$, the same expression provides the upper bound
+    \begin{equation}
+        \mathbb{E}[\Omega_A^t(k)]
+        \le Nk+N(N-1)k\rho_A^t(k),
+    \end{equation}
+    provided $\rho_A^t(k)$ is defined on the selected supports.
+\end{lemma}
+\begin{proof}
+    Ignoring padded inactive entries, write
+    \begin{equation}
+        \Omega_A^t(k)=\sum_{m=1}^{d}\left(\sum_{i=1}^{N}q_{A,i,m}^t(k)\right)^2,
+    \end{equation}
+    where $q_{A,i,m}^t(k)=\mathbf{1}\{m\in\mathcal{I}_{A,i}^t(k)\}$. Expanding the square gives the self-support term and the pairwise overlap term. Taking expectations proves the first identity. If $\mathcal{I}_{A,i}^t(k)=\mathcal{K}_{A,i}^t(k)$ and $|\mathcal{K}_{A,i}^t(k)|=k$, substituting the definition of $\rho_A^t(k)$ gives the equality. If $\mathcal{I}_{A,i}^t(k)\subseteq\mathcal{K}_{A,i}^t(k)$, the active self-support and pairwise active overlaps are no larger than their selected-support counterparts, which gives the upper bound.
+\end{proof}
+
+\begin{corollary}[\bf High-Probability Selection-to-Clipping Linkage]
+    \label{cor:clipping_linkage}
+    Let the time-domain noise-envelope event be
+    \begin{equation}
+        \mathcal{N}_{\delta}^{t}
+        =\left\{\max_{\ell,n}|y_{\ell,\mathrm{noise}}^t[n]|\le\nu_\delta\right\},
+        \qquad
+        \mathbb{P}(\mathcal{N}_{\delta}^{t})\ge 1-\delta.
+    \end{equation}
+    On $\mathcal{N}_{\delta}^{t}$,
+    \begin{equation}
+        E_{\mathrm{clip},A}^{t}(k,b_t)
+        \le
+        \sum_{\ell=1}^{S}Q
+        \left(
+        b_t\eta\tau C\sqrt{\Omega_{A,\ell}^{t}(k)}+
+        \nu_\delta-A_{\max}
+        \right)_+^2.
+    \end{equation}
+\end{corollary}
+\begin{proof}
+    On $\mathcal{N}_{\delta}^{t}$, Lemma~\ref{lemma:peak_stress} implies
+    \begin{equation}
+        |y_{A,\ell}^t[n;k,b_t]|
+        \le
+        b_t\eta\tau C\sqrt{\Omega_{A,\ell}^{t}(k)}+\nu_\delta.
+    \end{equation}
+    Since $x\mapsto(x-A_{\max})_+^2$ is nondecreasing for $x\ge0$, summing the resulting per-sample clipping upper bound over all $\ell,n$ completes the proof.
+\end{proof}
+
+\begin{remark}[\bf Role of the Selection-Dependent Clipping Linkage]
+    Corollary~\ref{cor:clipping_linkage} is not used to replace the exact ADC residual in the main convergence theorem. The theorem keeps $\mathbb{E}[E_{\mathrm{clip},A}^{t}(k,b_t)]$ explicitly. The corollary explains how the choice of $A$ influences ADC distortion through the support-overlap path
+    \begin{equation}
+        A\rightarrow \rho_A^t(k)\rightarrow\Omega_A^t(k)\rightarrow E_{\mathrm{clip},A}^{t}(k,b_t).
+    \end{equation}
+\end{remark}
+
+\section{Proof of Main Convergence Bound}
+
+\begin{theorem}[\bf ADC-Aware Convergence Bound]
+    \label{thm:main_convergence}
+    Suppose Assumptions~\ref{assum:smoothness}--\ref{assum:no_outage} hold, $\tau\ge2$, and the learning rate satisfies
+    \begin{equation}
+        \label{eqn:lr_condition_new}
+        \eta
+        \le
+        \min\left\{
+            \frac{1}{128L\tau G^2},
+            \frac{1}{\tau GL\sqrt{1+384\mu_A(k)}}
+        \right\},
+    \end{equation}
+    where $\mu_A(k)$ is defined in~\eqref{eqn:mu_def}. Define
+    \begin{equation}
+        \Gamma_A(k)=2+16L^2\mu_A(k)\eta^2\tau^2G^2,
+    \end{equation}
+    \begin{equation}
+        C_{\mathrm{adc}}=\frac{4}{\eta\tau}+L,
+    \end{equation}
+    \begin{equation}
+        \mathcal{E}_A(k)
+        \triangleq
+        (\eta\tau+2L\eta^2\tau^2)\beta_A^2(k),
+    \end{equation}
+    \begin{equation}
+        \Lambda_A
+        \triangleq
+        \eta\tau\left(\frac12+4L\eta\tau\right)
+        \left(1+32\eta^2\tau^2G^2L^2\right),
+    \end{equation}
+    \begin{equation}
+        R_A(k)=8L^2\mu_A(k)\eta^2\tau^2(2\kappa^2+\zeta^2),
+    \end{equation}
+    and
+    \begin{equation}
+        \Psi_A(k)
+        \triangleq
+        2\frac{2\kappa^2+\zeta^2}{\kappa^2+\zeta^2}
+        +\eta L\left(\frac12+4L\eta\tau\right)
+        \frac{32\tau\kappa^2+8\zeta^2}{\kappa^2+\zeta^2},
+    \end{equation}
+    with the convention that the variance-dependent ratios are omitted when $\kappa^2+\zeta^2=0$. Let $\Delta f\triangleq f(\theta^0)-f^*$. Define the learning-side term
+    \begin{align}
+        \label{eqn:phi_def_theorem}
+        \Phi_A\big(k;\bar{\omega}_A,\beta_A\big)
+        &\triangleq
+        \frac{16\Gamma_A(k)\Delta f}{T\eta\tau}
+        +\frac{16\Gamma_A(k)\mathcal{E}_A(k)}{\eta\tau}
+        +16\Gamma_A(k)\eta\tau L\Psi_A(k)(\kappa^2+\zeta^2)
+        \notag\\
+        &\quad+
+        \frac{16\Gamma_A(k)\Lambda_AR_A(k)}{\eta\tau}
+        +R_A(k).
+    \end{align}
+    Then the physical iterates generated by~\eqref{eqn:physical_update_adc} satisfy
+    \begin{align}
+        \label{eqn:final_adc_convergence_bound_theorem}
+        \frac1T\sum_{t=0}^{T-1}\mathbb{E}\\|\nabla f(\theta^t)\\|_2^2
+        &\le
+        \Phi_A\big(k;\bar{\omega}_A,\beta_A\big)
+        +
+        \frac{8\Gamma_A(k)L\sigma_0^2d}{T\eta\tau N^2}
+        \sum_{t=0}^{T-1}\frac1{b_t^2}
+        \notag\\
+        &\quad+
+        \frac{16\Gamma_A(k)C_{\mathrm{adc}}}{T\eta\tau N^2}
+        \sum_{t=0}^{T-1}
+        \frac{\mathbb{E}[E_{\mathrm{clip},A}^t(k,b_t)]}{b_t^2}.
+    \end{align}
+\end{theorem}
+
+\subsection{Construction of the Virtual Sequence and Separation}
+
+Define the averaged error memory
+\begin{equation}
+    \bar e^{t-1}\triangleq \frac1N\sum_{i=1}^{N}e_i^{t-1}.
+\end{equation}
+The virtual sequence is defined by
+\begin{equation}
+    \tilde\theta^t\triangleq \theta^t+\bar e^{t-1},
+    \qquad t\ge0,
+\end{equation}
+with $\bar e^{-1}=\mathbf{0}$. Equivalently, $\tilde\theta^{t+1}=\theta^{t+1}+\bar e^t$. Using~\eqref{eqn:transmit_signal} and the physical update~\eqref{eqn:physical_update_adc}, the error memories cancel out:
+\begin{equation}
+    \tilde\theta^{t+1}
+    =\tilde\theta^t+a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{adc},A}^t,
+\end{equation}
+where
+\begin{equation}
+    a_A^t
+    \triangleq
+    \frac1N\sum_{i=1}^{N}\Delta_i^t-\bar\xi_A^t(k),
+    \qquad
+    \bar\xi_A^t(k)\triangleq\frac1N\sum_{i=1}^{N}\xi_{A,i}^t(k).
+\end{equation}
+
+By $L$-smoothness,
+\begin{align}
+    \label{eqn:descent_expansion}
+    \mathbb{E}_t[f(\tilde\theta^{t+1})-f(\tilde\theta^t)]
+    &\le
+    \mathbb{E}_t\left\langle\nabla f(\tilde\theta^t),
+    a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{adc},A}^t\right\rangle
+    \notag\\
+    &\quad+
+    \frac{L}{2}\mathbb{E}_t\|a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{adc},A}^t\|_2^2.
+\end{align}
+Since $e_{\mathrm{ch}}^t$ is conditionally zero-mean, $\mathbb{E}_t\langle\nabla f(\tilde\theta^t),e_{\mathrm{ch}}^t\rangle=0$. No zero-mean or independence property is assumed for $e_{\mathrm{adc},A}^t$. We decompose
+\begin{equation}
+    \mathbb{E}_t[f(\tilde\theta^{t+1})-f(\tilde\theta^t)]
+    \le T_{1,A}+T_{\mathrm{adc,lin},A}+T_{2,A},
+\end{equation}
+where
+\begin{align}
+    T_{1,A}&\triangleq\mathbb{E}_t\langle\nabla f(\tilde\theta^t),a_A^t\rangle,\\
+    T_{\mathrm{adc,lin},A}&\triangleq\mathbb{E}_t\langle\nabla f(\tilde\theta^t),e_{\mathrm{adc},A}^t\rangle,\\
+    T_{2,A}&\triangleq\frac{L}{2}\mathbb{E}_t\|a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{adc},A}^t\|_2^2.
+\end{align}
+
+\subsection{Bounding $T_{1,A}$, $T_{\mathrm{adc,lin},A}$, and $T_{2,A}$}
+
+\subsubsection{Descent Directions $T_{1,A}$ and $T_{\mathrm{adc,lin},A}$}
+
+Using $\Delta_i^t=-\eta\sum_{s=1}^{\tau}g_i^{t,s-1}$ and Assumption~\ref{assum:unbiased},
+\begin{align}
+    \mathbb{E}_t\left\langle\nabla f(\tilde\theta^t),\frac1N\sum_{i=1}^{N}\Delta_i^t\right\rangle
+    &=-\eta\tau\mathbb{E}_t\left\langle\nabla f(\tilde\theta^t),
+    \frac{1}{N\tau}\sum_{i,s}\nabla f_i(\theta_i^{t,s-1})\right\rangle.
+\end{align}
+Applying the identity $\langle a,b\rangle=\frac12\|a\|_2^2+\frac12\|b\|_2^2-\frac12\|a-b\|_2^2$ and $L$-smoothness gives
+\begin{align}
+    \mathbb{E}_t\left\langle\nabla f(\tilde\theta^t),\frac1N\sum_i\Delta_i^t\right\rangle
+    &\le
+    -\frac{\eta\tau}{2}\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2
+    \notag\\
+    &\quad-
+    \frac{\eta\tau}{2}\mathbb{E}_t\left\|\frac{1}{N\tau}\sum_{i,s}\nabla f_i(\theta_i^{t,s-1})\right\|_2^2
+    \notag\\
+    &\quad+
+    \frac{\eta L^2}{2N}\sum_{i,s}\mathbb{E}_t\|\tilde\theta^t-\theta_i^{t,s-1}\|_2^2.
+\end{align}
+For the clipping-bias term, Young's inequality and Assumption~\ref{assum:clipping} yield
+\begin{equation}
+    -\mathbb{E}_t\langle\nabla f(\tilde\theta^t),\bar\xi_A^t(k)\rangle
+    \le
+    \frac{\eta\tau}{4}\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2+
+    \eta\tau\beta_A^2(k).
+\end{equation}
+Hence
+\begin{align}
+    \label{eqn:t1_bound_new}
+    T_{1,A}
+    &\le
+    -\frac{\eta\tau}{4}\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2
+    +\frac{\eta L^2}{2N}\sum_{i,s}\mathbb{E}_t\|\tilde\theta^t-\theta_i^{t,s-1}\|_2^2
+    \notag\\
+    &\quad-
+    \frac{\eta\tau}{2}\mathbb{E}_t\left\|\frac{1}{N\tau}\sum_{i,s}\nabla f_i(\theta_i^{t,s-1})\right\|_2^2
+    +\eta\tau\beta_A^2(k).
+\end{align}
+
+For the linear ADC term, Young's inequality and Lemma~\ref{lemma:adc_error} imply
+\begin{align}
+    \label{eqn:t_adc_lin_bound}
+    T_{\mathrm{adc,lin},A}
+    &\le
+    \frac{\eta\tau}{16}\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2
+    +
+    \frac{4}{\eta\tau b_t^2N^2}\mathbb{E}_t[E_{\mathrm{clip},A}^t(k,b_t)].
+\end{align}
+
+\subsubsection{Variance and Noise $T_{2,A}$}
+
+Because $e_{\mathrm{adc},A}^t$ may be correlated with both the update and the channel noise, we separate it using Young's inequality. With a symmetric choice of the Young parameter,
+\begin{align}
+    \mathbb{E}_t\|a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{adc},A}^t\|_2^2
+    &\le
+    2\mathbb{E}_t\|a_A^t+e_{\mathrm{ch}}^t\|_2^2
+    +2\mathbb{E}_t\|e_{\mathrm{adc},A}^t\|_2^2
+    \notag\\
+    &=2\mathbb{E}_t\|a_A^t\|_2^2
+    +2\mathbb{E}_t\|e_{\mathrm{ch}}^t\|_2^2
+    +2\mathbb{E}_t\|e_{\mathrm{adc},A}^t\|_2^2,
+\end{align}
+where the cross term between $a_A^t$ and $e_{\mathrm{ch}}^t$ vanishes by conditional zero-mean channel noise. Thus
+\begin{equation}
+    T_{2,A}
+    \le
+    L\mathbb{E}_t\|a_A^t\|_2^2
+    +L\mathbb{E}_t\|e_{\mathrm{ch}}^t\|_2^2
+    +L\mathbb{E}_t\|e_{\mathrm{adc},A}^t\|_2^2.
+\end{equation}
+Using Jensen's inequality and Assumption~\ref{assum:clipping},
+\begin{equation}
+    \mathbb{E}_t\|a_A^t\|_2^2
+    \le
+    \frac{2}{N}\sum_{i=1}^{N}\mathbb{E}_t\|\Delta_i^t\|_2^2
+    +2\eta^2\tau^2\beta_A^2(k).
+\end{equation}
+The accumulated local update satisfies
+\begin{align}
+    \frac1N\sum_{i=1}^{N}\mathbb{E}_t\|\Delta_i^t\|_2^2
+    &\le
+    \eta^2\tau\sum_{s=1}^{\tau}
+    \left(
+    \frac{2L^2}{N}\sum_{i=1}^{N}\mathbb{E}_t\|\tilde\theta^t-\theta_i^{t,s-1}\|_2^2
+    \right.
+    \notag\\
+    &\quad\left.
+    +2G^2\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2
+    +2\kappa^2+\zeta^2
+    \right).
+\end{align}
+Substituting this estimate, the channel-noise variance, and Lemma~\ref{lemma:adc_error}, we obtain
+\begin{align}
+    \label{eqn:t2_bound_new}
+    T_{2,A}
+    &\le
+    4L\eta^2\tau^2G^2\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2
+    +\frac{4L^3\eta^2\tau}{N}\sum_{i,s}\mathbb{E}_t\|\tilde\theta^t-\theta_i^{t,s-1}\|_2^2
+    \notag\\
+    &\quad+
+    2L\eta^2\tau^2(2\kappa^2+\zeta^2)
+    +2L\eta^2\tau^2\beta_A^2(k)
+    +\frac{Ld\sigma_0^2}{2b_t^2N^2}
+    +\frac{L}{b_t^2N^2}\mathbb{E}_t[E_{\mathrm{clip},A}^t(k,b_t)].
+\end{align}
+
+\subsection{Bounding the Virtual Local Divergence}
+
+Define
+\begin{equation}
+    D_{A,t}
+    \triangleq
+    \frac1N\sum_{i,s}\mathbb{E}_t\|\tilde\theta^t-\theta_i^{t,s-1}\|_2^2.
+\end{equation}
+Since $\tilde\theta^t-\theta_i^{t,s-1}=\bar e^{t-1}+\theta^t-\theta_i^{t,s-1}$, Lemma~\ref{lemma:local_div} and the gradient conversion
+\begin{equation}
+    \|\nabla f(\theta^t)\|_2^2
+    \le
+    2\|\nabla f(\tilde\theta^t)\|_2^2+2L^2\|\bar e^{t-1}\|_2^2
+\end{equation}
+give
+\begin{align}
+    \label{eqn:psi_bound}
+    D_{A,t}
+    &\le
+    64\eta^2\tau^3G^2\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2
+    \notag\\
+    &\quad+
+    2\tau(1+32\eta^2\tau^2G^2L^2)\|\bar e^{t-1}\|_2^2
+    +32\eta^2\tau^3\kappa^2+8\tau^2\eta^2\zeta^2.
+\end{align}
+
+\subsection{Learning Rate Conditions and Single-Step Descent}
+
+Define the $\mathcal{F}_t$-measurable memory quantity
+\begin{equation}
+    \mathcal{M}_{A,t-1}\triangleq 2L^2\|\bar e^{t-1}\|_2^2.
+\end{equation}
+Combining~\eqref{eqn:t1_bound_new},~\eqref{eqn:t_adc_lin_bound}, and~\eqref{eqn:t2_bound_new}, substituting~\eqref{eqn:psi_bound}, and collecting terms gives
+\begin{align}
+    \mathbb{E}_t[f(\tilde\theta^{t+1})-f(\tilde\theta^t)]
+    &\le
+    -\frac{3\eta\tau}{16}\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2
+    +C_{\nabla,A}^{(0)}\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2
+    \notag\\
+    &\quad+
+    \Lambda_A\mathcal{M}_{A,t-1}
+    +\eta^2\tau^2L\Psi_A(k)(\kappa^2+\zeta^2)
+    +\mathcal{E}_A(k)
+    \notag\\
+    &\quad+
+    \frac{Ld\sigma_0^2}{2b_t^2N^2}
+    +C_{\mathrm{adc}}\frac{\mathbb{E}_t[E_{\mathrm{clip},A}^t(k,b_t)]}{b_t^2N^2},
+\end{align}
+where
+\begin{equation}
+    C_{\nabla,A}^{(0)}
+    =4L\eta^2\tau^2G^2
+    +64\eta^3\tau^3L^2G^2\left(\frac12+4L\eta\tau\right),
+\end{equation}
+\begin{equation}
+    \Lambda_A
+    =\eta\tau\left(\frac12+4L\eta\tau\right)
+    \left(1+32\eta^2\tau^2G^2L^2\right),
+\end{equation}
+\begin{equation}
+    \mathcal{E}_A(k)
+    \triangleq
+    (\eta\tau+2L\eta^2\tau^2)\beta_A^2(k),
+    \qquad
+    C_{\mathrm{adc}}\triangleq \frac{4}{\eta\tau}+L,
+\end{equation}
+and
+\begin{equation}
+    \Psi_A(k)
+    \triangleq
+    2\frac{2\kappa^2+\zeta^2}{\kappa^2+\zeta^2}
+    +\eta L\left(\frac12+4L\eta\tau\right)
+    \frac{32\tau\kappa^2+8\zeta^2}{\kappa^2+\zeta^2},
+\end{equation}
+with the convention that variance-dependent ratios are omitted when $\kappa^2+\zeta^2=0$.
+
+Under the learning-rate condition~\eqref{eqn:lr_condition_new}, one has $C_{\nabla,A}^{(0)}\le \eta\tau/16$. Therefore,
+\begin{align}
+    \label{eqn:single_step_descent_new}
+    \mathbb{E}_t[f(\tilde\theta^{t+1})-f(\tilde\theta^t)]
+    &\le
+    -\frac{\eta\tau}{8}\mathbb{E}_t\|\nabla f(\tilde\theta^t)\|_2^2
+    +\Lambda_A\mathcal{M}_{A,t-1}
+    \notag\\
+    &\quad+
+    \eta^2\tau^2L\Psi_A(k)(\kappa^2+\zeta^2)
+    +\mathcal{E}_A(k)
+    +\frac{Ld\sigma_0^2}{2b_t^2N^2}
+    \notag\\
+    &\quad+
+    C_{\mathrm{adc}}\frac{\mathbb{E}_t[E_{\mathrm{clip},A}^t(k,b_t)]}{b_t^2N^2}.
+\end{align}
+
+\subsection{Virtual Model Convergence}
+
+Telescoping~\eqref{eqn:single_step_descent_new} over $t=0,\ldots,T-1$, using $f(\tilde\theta^T)\ge f^*$ and $\tilde\theta^0=\theta^0$, and defining $\Delta f\triangleq f(\theta^0)-f^*$, we obtain
+\begin{equation}
+    \label{eqn:virtual_bound_with_memory}
+    \frac1T\sum_{t=0}^{T-1}\mathbb{E}\|\nabla f(\tilde\theta^t)\|_2^2
+    \le
+    B_A(k,\{b_t\})+
+    \frac{8\Lambda_A}{T\eta\tau}\sum_{t=0}^{T-1}\mathbb{E}[\mathcal{M}_{A,t-1}],
+\end{equation}
+where
+\begin{align}
+    B_A(k,\{b_t\})
+    &\triangleq
+    \frac{8\Delta f}{T\eta\tau}
+    +8\eta\tau L\Psi_A(k)(\kappa^2+\zeta^2)
+    +\frac{8\mathcal{E}_A(k)}{\eta\tau}
+    \notag\\
+    &\quad+
+    \frac{4L\sigma_0^2d}{T\eta\tau N^2}\sum_{t=0}^{T-1}\frac1{b_t^2}
+    +
+    \frac{8C_{\mathrm{adc}}}{T\eta\tau N^2}
+    \sum_{t=0}^{T-1}
+    \frac{\mathbb{E}[E_{\mathrm{clip},A}^t(k,b_t)]}{b_t^2}.
+\end{align}
+
+
+\subsection{Conversion to the Physical Model}
+
+By $L$-smoothness,
+\begin{equation}
+    \mathbb{E}\|\nabla f(\theta^t)\|_2^2
+    \le
+    2\mathbb{E}\|\nabla f(\tilde\theta^t)\|_2^2+E_{A,t-1},
+\end{equation}
+where
+\begin{equation}
+    E_{A,t-1}
+    \triangleq
+    \mathbb{E}[\mathcal{M}_{A,t-1}]
+    =2L^2\mathbb{E}\|\bar e^{t-1}\|_2^2.
+\end{equation}
+Using Jensen's inequality, $e_i^{-1}=\mathbf{0}$, and Lemma~\ref{lemma:error_bound},
+\begin{align}
+    \sum_{t=0}^{T-1}E_{A,t-1}
+    &\le
+    2L^2\mu_A(k)
+    \sum_{t=0}^{T-1}\frac1N\sum_{i=1}^{N}\mathbb{E}\|\Delta_i^t\|_2^2.
+    \label{eqn:memory_start}
+\end{align}
+It remains to close the recursion because the accumulated-update norm itself depends on the error memory through $\tilde\theta^t$.
+From the accumulated-update estimate used in~\eqref{eqn:t2_bound_new},
+\begin{align}
+    \frac1N\sum_{i=1}^{N}\mathbb{E}\|\Delta_i^t\|_2^2
+    &\le
+    2\eta^2\tau L^2\mathbb{E}[D_{A,t}]
+    +2\eta^2\tau^2G^2\mathbb{E}\|\nabla f(\tilde\theta^t)\|_2^2
+    +\eta^2\tau^2(2\kappa^2+\zeta^2).
+    \label{eqn:delta_accum_preclose}
+\end{align}
+Substituting the virtual local-divergence bound~\eqref{eqn:psi_bound} into~\eqref{eqn:delta_accum_preclose} gives
+\begin{align}
+    \frac1N\sum_{i=1}^{N}\mathbb{E}\|\Delta_i^t\|_2^2
+    &\le
+    c_{g}\,\mathbb{E}\|\nabla f(\tilde\theta^t)\|_2^2
+    +c_{e}\,E_{A,t-1}
+    +c_{0},
+    \label{eqn:delta_accum_closed_raw}
+\end{align}
+where
+\begin{align}
+    c_g&=2\eta^2\tau^2G^2+128\eta^4\tau^4L^2G^2,\\
+    c_e&=2\eta^2\tau^2\left(1+32\eta^2\tau^2G^2L^2\right),\\
+    c_0&=\eta^2\tau^2(2\kappa^2+\zeta^2)
+    +64\eta^4\tau^4L^2\kappa^2
+    +16\eta^4\tau^3L^2\zeta^2.
+\end{align}
+Under~\eqref{eqn:lr_condition_new}, these coefficients satisfy the conservative bounds
+\begin{equation}
+    c_g\le 4\eta^2\tau^2G^2,
+    \qquad
+    c_0\le 2\eta^2\tau^2(2\kappa^2+\zeta^2),
+    \qquad
+    2L^2\mu_A(k)c_e\le \frac12.
+    \label{eqn:memory_absorb_conditions}
+\end{equation}
+Combining~\eqref{eqn:memory_start}--\eqref{eqn:delta_accum_closed_raw} and using~\eqref{eqn:memory_absorb_conditions} yield
+\begin{align}
+    \sum_{t=0}^{T-1}E_{A,t-1}
+    &\le
+    2L^2\mu_A(k)c_g
+    \sum_{t=0}^{T-1}\mathbb{E}\|\nabla f(\tilde\theta^t)\|_2^2
+    +2L^2\mu_A(k)c_e
+    \sum_{t=0}^{T-1}E_{A,t-1}
+    +2L^2\mu_A(k)Tc_0
+    \notag\\
+    &\le
+    8L^2\mu_A(k)\eta^2\tau^2G^2
+    \sum_{t=0}^{T-1}\mathbb{E}\|\nabla f(\tilde\theta^t)\|_2^2
+    +\frac12\sum_{t=0}^{T-1}E_{A,t-1}
+    +4L^2\mu_A(k)T\eta^2\tau^2(2\kappa^2+\zeta^2).
+\end{align}
+Moving the middle term to the left gives the explicit memory-closure inequality
+\begin{equation}
+    \label{eqn:memory_sum_bound}
+    \frac1T\sum_{t=0}^{T-1}E_{A,t-1}
+    \le
+    M_A(k)
+    \frac1T\sum_{t=0}^{T-1}\mathbb{E}\|\nabla f(\tilde\theta^t)\|_2^2
+    +R_A(k),
+\end{equation}
+where
+\begin{equation}
+    M_A(k)=16L^2\mu_A(k)\eta^2\tau^2G^2,
+\end{equation}
+and
+\begin{equation}
+    R_A(k)=8L^2\mu_A(k)\eta^2\tau^2(2\kappa^2+\zeta^2).
+\end{equation}
+The learning-rate condition also ensures
+\begin{equation}
+    \frac{8\Lambda_AM_A(k)}{\eta\tau}\le \frac12.
+\end{equation}
+Therefore, combining~\eqref{eqn:virtual_bound_with_memory} and~\eqref{eqn:memory_sum_bound} gives
+\begin{equation}
+    \frac1T\sum_{t=0}^{T-1}\mathbb{E}\|\nabla f(\tilde\theta^t)\|_2^2
+    \le
+    2B_A(k,\{b_t\})+\frac{16\Lambda_AR_A(k)}{\eta\tau}.
+\end{equation}
+Averaging the physical-to-virtual conversion over $T$ rounds and substituting~\eqref{eqn:memory_sum_bound}, we obtain
+\begin{align}
+    \frac1T\sum_{t=0}^{T-1}\mathbb{E}\|\nabla f(\theta^t)\|_2^2
+    &\le
+    \Gamma_A(k)
+    \frac1T\sum_{t=0}^{T-1}\mathbb{E}\|\nabla f(\tilde\theta^t)\|_2^2
+    +R_A(k),
+\end{align}
+where
+\begin{equation}
+    \Gamma_A(k)=2+M_A(k)=2+16L^2\mu_A(k)\eta^2\tau^2G^2.
+\end{equation}
+Substituting the bound on the virtual sequence yields
+\begin{align}
+    \label{eqn:final_adc_convergence_bound}
+    \frac1T\sum_{t=0}^{T-1}\mathbb{E}\|\nabla f(\theta^t)\|_2^2
+    &\le
+    \frac{8\Gamma_A(k)L\sigma_0^2d}{T\eta\tau N^2}
+    \sum_{t=0}^{T-1}\frac1{b_t^2}
+    \notag\\
+    &\quad+
+    \frac{16\Gamma_A(k)C_{\mathrm{adc}}}{T\eta\tau N^2}
+    \sum_{t=0}^{T-1}
+    \frac{\mathbb{E}[E_{\mathrm{clip},A}^t(k,b_t)]}{b_t^2}
+    +\Phi_A\big(k;\bar{\omega}_A,\beta_A\big),
+\end{align}
+where $\Phi_A\big(k;\bar{\omega}_A,\beta_A\big)$ is defined in~\eqref{eqn:phi_def_theorem}. This proves Theorem~\ref{thm:main_convergence}.
+
+\subsection{Interpretation and ADC-Surrogate Interface}
+
+The bound in~\eqref{eqn:final_adc_convergence_bound} has three terms. The first term is the post-recovery AirComp channel-noise error, which decreases as $b_t$ increases. The second term is the exact ADC-induced aggregation error. It is kept as $\mathbb{E}[E_{\mathrm{clip},A}^t(k,b_t)]$ because ADC clipping is a nonlinear waveform-level functional of the OFDM signal. The third term $\Phi_A(k;\bar{\omega}_A,\beta_A)$ collects all learning-side terms, including local drift, stochastic variance, data heterogeneity, error feedback, and pre-transmission clipping bias. The theorem is an exact convergence statement under a fixed effective ADC threshold $A_{\max}$. In a receiver model with AGC/backoff normalization, the same theorem should be read as the fixed-threshold analytical foundation, while the main-text design replaces the waveform-level ADC term by a calibrated normalized-PAPR surrogate for sparsity selection rather than optimizing $b_t$ through the nonlinear ADC functional.
+
+The role of Top-$k$ relative to Rand-$k$ is reflected through two separate mechanism-dependent quantities. First, the certified energy-retention coefficient can satisfy $\bar{\omega}_{\mathrm{Top}}(k)> k/d$ when the update energy is concentrated, while uniform Rand-$k$ has the baseline contraction $\bar{\omega}_{\mathrm{Rand}}(k)=k/d$ under uniform coordinate sampling. A larger certified or calibrated lower-bound coefficient $\bar{\omega}_A(k)$ decreases $\mu_A(k)$ and hence reduces the error-feedback memory contribution in $\Phi_A$. Second, the ADC term is affected by support overlap through Lemma~\ref{lemma:overlap} and Corollary~\ref{cor:clipping_linkage}. Thus, the Top-$k$ advantage over Rand-$k$ should be attributed to importance retention and mechanism-dependent PAPR/ADC behavior, not to a strictly smaller worst-case DP sensitivity under the same $k$ and clipping threshold.
+
+For the main-text optimization, the exact ADC term may be replaced by a calibrated AGC/backoff surrogate
+\begin{equation}
+    \widehat D_{\mathrm{ADC},A}(k;\gamma)
+    =\frac{1}{T_{\mathrm{cal}}}
+    \sum_{t=1}^{T_{\mathrm{cal}}}\sum_{\ell=1}^{S}\sum_{n=0}^{Q-1}
+    \left(|\bar y_{A,\ell}^t[n;k]|-\gamma\right)_+^2,
+\end{equation}
+where $\bar y_{A,\ell}^t[n;k]$ is the RMS-normalized ADC input waveform and $\gamma$ is the clipping ratio or backoff threshold. This surrogate affects sparsity selection, whereas $b_t$ is primarily determined by the power and privacy constraints.
+
+\end{document}

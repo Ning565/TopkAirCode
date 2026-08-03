@@ -7,9 +7,10 @@ cd "$ROOT_DIR"
 PYTHON_BIN="${PYTHON_BIN:-quenv/bin/python}"
 DEVICE="${DEVICE:-cuda:3}"
 SEED="${SEED:-2026}"
-ROUNDS="${ROUNDS:-80}"
-EVAL_EVERY="${EVAL_EVERY:-10}"
+ROUNDS="${ROUNDS:-200}"
+EVAL_EVERY="${EVAL_EVERY:-5}"
 GAMMAS="${GAMMAS:-0.8,1.0,1.2,1.3,1.5,2.0}"
+TAIL_WINDOW="${TAIL_WINDOW:-25}"
 
 EPSILON="${EPSILON:-3e8}"
 SIGMA0="${SIGMA0:-0.03}"
@@ -56,6 +57,7 @@ CMD_FILE="${CMD_FILE:-${LOG_DIR}/${RUN_TAG}.cmd.sh}"
     --min-lr "$MIN_LR" \
     --optimizer-momentum "$OPTIMIZER_MOMENTUM" \
     --optimizer-weight-decay "$OPTIMIZER_WEIGHT_DECAY" \
+    --tail-window "$TAIL_WINDOW" \
     --output-dir "$OUT_DIR"
   echo
 } > "$CMD_FILE"

@@ -160,17 +160,17 @@ def write_csv(path: Path, rows: List[Dict]) -> None:
         writer.writerows(rows)
 
 
-def best_by_method(rows: List[Dict]) -> Dict[str, Dict]:
+def best_by_method(rows: List[Dict], metric: str = "final_accuracy") -> Dict[str, Dict]:
     best = {}
     for method in METHOD_ORDER:
         sub = [row for row in rows if row["method"] == method]
         if sub:
-            best[method] = max(sub, key=lambda row: row["final_accuracy"])
+            best[method] = max(sub, key=lambda row: row[metric])
     return best
 
 
 def write_markdown(path: Path, rows: List[Dict], args) -> None:
-    best = best_by_method(rows)
+    best = best_by_method(rows, args.selection_metric)
     with path.open("w", encoding="utf-8") as handle:
         handle.write("# 实验二压缩率 sweep\n\n")
         handle.write("本 sweep 由真实训练输出聚合，目的是公开选择工作点，不用于手工削弱 baseline。\n\n")
@@ -204,7 +204,7 @@ def write_markdown(path: Path, rows: List[Dict], args) -> None:
                 f"{row['clip_energy_last']:.2e} | {row['regime']} |\n"
             )
 
-        handle.write("\n## 按 final accuracy 的每方法最优\n\n")
+        handle.write(f"\n## 按 {args.selection_metric} 的每方法最优\n\n")
         handle.write("| 方法 | k/d | final | tail | AUC均值 | best | b* |\n")
         handle.write("|---|---:|---:|---:|---:|---:|---:|\n")
         for method in METHOD_ORDER:
@@ -262,7 +262,9 @@ def plot(rows: List[Dict], out_dir: Path) -> None:
         plt.xlabel("k/d")
         plt.ylabel(ylabel)
         if metric in accuracy_metrics:
-            plt.xlim(0.05, 1.03)
+            plotted_ratios = [row["ratio"] for row in rows]
+            left = max(0.0, min(plotted_ratios) - 0.02)
+            plt.xlim(left, 1.03)
         plt.grid(True, linestyle="--", alpha=0.45)
         plt.legend()
         plt.tight_layout()
@@ -296,6 +298,11 @@ def main() -> None:
     parser.add_argument("--randk-mask-mode", choices=("common", "independent"), default="common")
     parser.add_argument("--target-accuracy", type=float, default=75.0)
     parser.add_argument("--tail-window", type=int, default=5)
+    parser.add_argument(
+        "--selection-metric",
+        choices=("final_accuracy", "tail_mean_accuracy", "auc_mean_accuracy"),
+        default="tail_mean_accuracy",
+    )
     parser.add_argument("--output-dir", default="logs/experiments/exp2.0-onlinesearch/ratio_sweep")
     args = parser.parse_args()
 
@@ -316,6 +323,14 @@ def main() -> None:
     rows = collect(jobs, args.target_accuracy, args.tail_window)
     with (out_dir / "sweep_results.json").open("w", encoding="utf-8") as handle:
         json.dump(rows, handle, indent=2, ensure_ascii=False)
+    selected = best_by_method(rows, args.selection_metric)
+    with (out_dir / "selected_workpoints.json").open("w", encoding="utf-8") as handle:
+        json.dump(
+            {"selection_metric": args.selection_metric, "methods": selected},
+            handle,
+            indent=2,
+            ensure_ascii=False,
+        )
     write_csv(out_dir / "sweep_results.csv", rows)
     write_markdown(out_dir / "summary.md", rows, args)
     plot(rows, out_dir)

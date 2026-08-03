@@ -370,6 +370,8 @@ class OFDMAirCompADC:
             "papr_max_db": float(papr_db.max().item()),
             "clip_sample_ratio": clip_ratio,
             "normalized_clip_energy": float(clip_energy / (signal_energy + 1e-12)),
+            "clip_energy": float(clip_energy),
+            "waveform_energy": float(signal_energy),
             "effective_noise_std": float(cfg.sigma0 / (b_star * c + 1e-12)),
             "u_active_mean": float(active_u.mean()) if active_u.size else 0.0,
             "active_resource_ratio": float(np.mean(u > 0)),

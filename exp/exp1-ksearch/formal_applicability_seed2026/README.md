@@ -1,0 +1,69 @@
+# 实验一系统适用范围汇总
+
+所有环境均采用同一方法公平协议；环境扫描不用于为不同方法选择不同参数。`best_design_ratio` 是校准代理候选，`best_strict_ratio` 使用通用严格收缩系数。
+
+| 扫描族 | 数值 | 方法 | 校准候选 $p$ | 严格候选 $p$ | 主导项 | 主导占比 |
+|---|---:|---|---:|---:|---|---:|
+| baseline | baseline | TOPK | 0.68 | 1.00 | channel | 0.926 |
+| baseline | baseline | RANDK | 1.00 | 1.00 | channel | 0.958 |
+| baseline | baseline | FULL | 1.00 | 1.00 | channel | 0.958 |
+| adc_backoff_db | 11 | TOPK | 0.68 | 1.00 | channel | 0.934 |
+| adc_backoff_db | 11 | RANDK | 1.00 | 1.00 | channel | 0.966 |
+| adc_backoff_db | 11 | FULL | 1.00 | 1.00 | channel | 0.966 |
+| adc_backoff_db | 3 | TOPK | 0.68 | 1.00 | channel | 0.849 |
+| adc_backoff_db | 3 | RANDK | 1.00 | 1.00 | channel | 0.876 |
+| adc_backoff_db | 3 | FULL | 1.00 | 1.00 | channel | 0.876 |
+| adc_backoff_db | 9 | TOPK | 0.68 | 1.00 | channel | 0.934 |
+| adc_backoff_db | 9 | RANDK | 1.00 | 1.00 | channel | 0.966 |
+| adc_backoff_db | 9 | FULL | 1.00 | 1.00 | channel | 0.966 |
+| epsilon_total | 10 | TOPK | 0.66 | 1.00 | channel | 0.976 |
+| epsilon_total | 10 | RANDK | 1.00 | 1.00 | channel | 0.985 |
+| epsilon_total | 10 | FULL | 1.00 | 1.00 | channel | 0.985 |
+| epsilon_total | 2.5 | TOPK | 0.65 | 1.00 | channel | 0.990 |
+| epsilon_total | 2.5 | RANDK | 1.00 | 1.00 | channel | 0.991 |
+| epsilon_total | 2.5 | FULL | 1.00 | 1.00 | channel | 0.991 |
+| epsilon_total | 20 | TOPK | 0.67 | 1.00 | channel | 0.951 |
+| epsilon_total | 20 | RANDK | 1.00 | 1.00 | channel | 0.973 |
+| epsilon_total | 20 | FULL | 1.00 | 1.00 | channel | 0.973 |
+| epsilon_total | 5 | TOPK | 0.65 | 1.00 | channel | 0.986 |
+| epsilon_total | 5 | RANDK | 1.00 | 1.00 | channel | 0.989 |
+| epsilon_total | 5 | FULL | 1.00 | 1.00 | channel | 0.989 |
+| local_steps | 1 | TOPK | 0.38 | 1.00 | channel | 0.948 |
+| local_steps | 1 | RANDK | 1.00 | 1.00 | channel | 0.975 |
+| local_steps | 1 | FULL | 1.00 | 1.00 | channel | 0.975 |
+| local_steps | 10 | TOPK | 0.78 | 1.00 | channel | 0.939 |
+| local_steps | 10 | RANDK | 1.00 | 1.00 | channel | 0.959 |
+| local_steps | 10 | FULL | 1.00 | 1.00 | channel | 0.959 |
+| num_clients | 10 | TOPK | 0.52 | 1.00 | channel | 0.971 |
+| num_clients | 10 | RANDK | 1.00 | 1.00 | channel | 0.984 |
+| num_clients | 10 | FULL | 1.00 | 1.00 | channel | 0.984 |
+| num_clients | 32 | TOPK | 0.64 | 1.00 | channel | 0.885 |
+| num_clients | 32 | RANDK | 1.00 | 1.00 | channel | 0.940 |
+| num_clients | 32 | FULL | 1.00 | 1.00 | channel | 0.940 |
+| num_clients | 50 | TOPK | 0.71 | 1.00 | channel | 0.755 |
+| num_clients | 50 | RANDK | 1.00 | 1.00 | channel | 0.830 |
+| num_clients | 50 | FULL | 1.00 | 1.00 | channel | 0.830 |
+| rounds | 100 | TOPK | 0.69 | 1.00 | channel | 0.876 |
+| rounds | 100 | RANDK | 1.00 | 1.00 | channel | 0.927 |
+| rounds | 100 | FULL | 1.00 | 1.00 | channel | 0.927 |
+| rounds | 300 | TOPK | 0.67 | 1.00 | channel | 0.943 |
+| rounds | 300 | RANDK | 1.00 | 1.00 | channel | 0.969 |
+| rounds | 300 | FULL | 1.00 | 1.00 | channel | 0.969 |
+| snr_db | 0 | TOPK | 0.68 | 1.00 | channel | 0.926 |
+| snr_db | 0 | RANDK | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 0 | FULL | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 10 | TOPK | 0.68 | 1.00 | channel | 0.926 |
+| snr_db | 10 | RANDK | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 10 | FULL | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 20 | TOPK | 0.68 | 1.00 | channel | 0.926 |
+| snr_db | 20 | RANDK | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 20 | FULL | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 25 | TOPK | 0.68 | 1.00 | channel | 0.926 |
+| snr_db | 25 | RANDK | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 25 | FULL | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 30 | TOPK | 0.68 | 1.00 | channel | 0.926 |
+| snr_db | 30 | RANDK | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 30 | FULL | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 5 | TOPK | 0.68 | 1.00 | channel | 0.926 |
+| snr_db | 5 | RANDK | 1.00 | 1.00 | channel | 0.958 |
+| snr_db | 5 | FULL | 1.00 | 1.00 | channel | 0.958 |

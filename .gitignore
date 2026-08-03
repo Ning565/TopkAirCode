@@ -3,6 +3,7 @@ quenv/
 .venv/
 venv/
 env/
+.conda_envs_dir_test
 # new/
 data.zip
 
@@ -54,4 +55,3 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
-
