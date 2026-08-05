@@ -666,6 +666,14 @@ OFDM 多个子载波在时域叠加后可能形成较高瞬时峰值，因此需
 
 因此四个档位有明确的物理分工：**3 dB** 对应发射端主动削顶量级的强失真压力；**6 dB** 位于"主动削顶"与"工程 headroom"之间的中等压力；**9 dB** 约等于 8–9 dB 工程惯例、削顶接近消失；**11 dB** 超出惯例 headroom，作为近似无削顶参照。$\{3,6,9,11\}$ dB 恰好覆盖 Rietman & Linnartz 的研究区间并向两端各延一档。
 
+**（4）2020 年代的新进展与本文引用格局。** 近年文献在三个方向上推进了 AirComp 中的 PAPR/动态范围问题，与本文设置的对应关系如下：
+
+- **AirComp-FL 峰值功率约束（发射端）**：Bielefeld、Zheng、Zhu、Hu、Schmeink（arXiv:2512.23381，2025，已投 IEEE）是首篇在 AirComp-FL 场景确认 PAPR 峰值功率问题的工作：单载波与 OFDM 双链路，LeNet/CIFAR-10、40 UE 均匀分布于 100 m 圆盘、路损 + Rayleigh 块衰落；平均功率 23 dBm、瞬时峰值 26 dBm（峰值预算 3 dB）、$L_{\rm os}=4$ 过采样（引 Tellambura，IEEE Commun. Lett. 2001），采用迭代削顶滤波（ICF）处理。其发现：削顶使测试精度下降约 1.5–2%（峰值时 8%），且**低噪声时去噪因子放大带内削顶失真、训练可能发散**——与本文"失真受限区间"的传导链预期一致。其峰值预算 3 dB 与本文扫描下端 3 dB 档对齐，$L_{\rm os}=4$ 与本文一致；但其削顶发生在发射端 PA，与本文接收端动态范围口径互补。
+- **接收端低精度 ADC**：Tegin & Duman（IEEE TWC 2021）在 OFDM AirComp-FL 中用 Bussgang 分解将 b-bit ADC/DAC 量化失真建为加性噪声，结论是设备数足够时 one-bit 也仅轻微退化——这是本文"有限位量化未建模"扩展方向的现代依据；其量化失真建模与本文饱和削顶建模分属两个硬件环节，不冲突。
+- **领域综述与发射端降 PAPR 新方法**：Şahin & Yang（IEEE COMST 2023）的 AirComp 综述将 PAPR 列为实践挑战之一，适作定位引用；ML 降 PAPR 综述（da Silva 等，2024）、深度学习 tone reservation（TRNet 等）属发射端主动降 PAPR 路线，与本文被动削顶评估口径不同，只作背景引用、不采纳其参数。
+
+综上，本文引用格局为：**Rietman & Linnartz（TWC 2008，接收端削顶机制与 headroom 惯例）+ Bielefeld 等（arXiv 2025，AirComp-FL 中 PAPR 问题的确认与参数对照）+ Tegin & Duman（TWC 2021，量化扩展方向）+ Şahin & Yang（COMST 2023，领域定位）**；新文献验证而非推翻现有档位设置。
+
 ### 11.2 本文场景的设置
 
 当前硬件模型采用：
@@ -714,7 +722,7 @@ Top-k、Rand-k 和 Full 会产生不同的活跃子载波结构和时域波形�
 | CSI/同步 | 基准假设 | 完美 | 非理想情况不在当前基准中 | Zhu 等（TWC 2020）、Amiri & Gündüz（TWC 2020）假设口径 |
 | 天线 | 客户端/基站 | 单天线/单天线 | 上行 AirComp MAC | Zhu 等（TWC 2020）、Amiri & Gündüz（TSP/TWC 2020） |
 | 下行 | 广播模型 | 无误差 | 不建立下行模型 | Amiri & Gündüz（TWC 2020），原文 error-free 共享/多播链路 |
-| 硬件 | AGC 后回退 | 6 dB | 扫描 3、6、9、11 dB | Rietman & Linnartz（TWC 2008）：8–9 dB headroom 惯例与削顶校正区间（见 11.1 节） |
-| 硬件 | 过采样倍数 | 4 | 用于 PAPR/削顶统计 | OFDM PAPR 仿真惯例（$\ge4$ 倍过采样逼近连续峰值） |
+| 硬件 | AGC 后回退 | 6 dB | 扫描 3、6、9、11 dB | Rietman & Linnartz（TWC 2008）：8–9 dB headroom 惯例与削顶校正区间；3 dB 档与 Bielefeld 等（arXiv 2025）的峰值预算 $P_{\rm inst}/P_{\rm avg}=3$ dB 对齐（见 11.1 节） |
+| 硬件 | 过采样倍数 | 4 | 用于 PAPR/削顶统计 | Tellambura（IEEE Commun. Lett. 2001）；Bielefeld 等（arXiv 2025）同款 $L_{\rm os}=4$ |
 | 统计 | 种子与信道实现 | ≥5 种子；正式图 ≥100 次信道实现取均值 | 机制验证允许单种子 | R2/R8/R9 分别使用 100–1000/100/300 次信道实现 |
 
