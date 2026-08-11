@@ -86,14 +86,14 @@ Each client maintains a local error memory $e_i^t$, initialized as $e_i^{-1}=\ma
     \end{equation}
     \item \textbf{Pre-transmission clipping:} clip the sparse update element-wise as
     \begin{equation}
-        s_{A,i}^t(k)=\mathrm{clip}\big(\tilde v_{A,i}^t(k),\eta\tau C\big).
+        s_{A,i}^t(k)=\mathrm{clip}\big(\tilde v_{A,i}^t(k),c_{\mathrm{tx}}\big),
     \end{equation}
 \end{enumerate}
 The clipping step guarantees
 \begin{equation}
     \|s_{A,i}^t(k)\|_0\le k,
     \qquad
-    \|s_{A,i}^t(k)\|_{\infty}\le \eta\tau C.
+    \|s_{A,i}^t(k)\|_{\infty}\le c_{\mathrm{tx}}.
 \end{equation}
 We define the pre-transmission clipping bias as
 \begin{equation}
@@ -137,11 +137,11 @@ The injection level is calibrated in closed form from public quantities only,
 \end{equation}
 so that no additional signaling beyond the existing broadcast of $b_t$ is required. When channel noise alone already meets the privacy requirement the injection vanishes and privacy is purely intrinsic; artificial noise is added only to top up the deficit.
 
-Let $c_{\mathrm{tx}}\triangleq\eta\tau C$. The complete-burst average transmit power of client $i$ is
+Let $c_{\mathrm{tx}}>0$ be a declared public coordinate threshold that is fixed independently of the optimizer learning-rate schedule. The complete-burst average transmit power of client $i$ is
 \begin{equation}
     P_{A,i}^{t}
     =\frac{1}{SM}\sum_{\ell=1}^{S}\sum_{m=0}^{M-1}|X_{A,i,\ell}^t[m]|^2
-    =\frac{b_t^2}{SM|g_i^t|^2}\Big(\|s_{A,i}^t(k)\|_2^2+\|a_i^t\|_2^2\Big),
+    =\frac{b_t^2}{SM|g_i^t|^2}\big\|s_{A,i}^t(k)+a_i^t\big\|_2^2,
 \end{equation}
 and its expectation equals $\frac{b_t^2}{SM|g_i^t|^2}\big(\|s_{A,i}^t(k)\|_2^2+d\sigma_{a,t}^2\big)$.
 Since $\|s_{A,i}^t(k)\|_0\le k$ and $\|s_{A,i}^t(k)\|_\infty\le c_{\mathrm{tx}}$, the public per-round power ceiling is
@@ -160,7 +160,7 @@ Substituting the calibration~\eqref{eqn:artificial_noise_calibration} at equalit
 \end{equation}
 \begin{remark}[\bf Expected versus Realized Noise Power]
     \label{rem:chi_square}
-    The constraint is stated for the expected artificial-noise energy. Since $\|a_i^t\|_2^2/(d\sigma_{a,t}^2)$ is a normalized chi-square variable with $d$ degrees of freedom, its relative fluctuation is $\sqrt{2/d}$; replacing $P_{\mathrm{cap}}$ by $(1+3\sqrt{2/d})^{-1}P_{\mathrm{cap}}$ converts the statement into a high-probability per-burst constraint with negligible loss.
+    The constraint is stated in expectation. Conditional on $s_{A,i}^t(k)$, $\|s_{A,i}^t(k)+a_i^t\|_2^2/\sigma_{a,t}^2$ is noncentral chi-square with $d$ degrees of freedom and noncentrality $\|s_{A,i}^t(k)\|_2^2/\sigma_{a,t}^2$. A deterministic or specified high-probability per-burst guarantee therefore requires an explicit power margin obtained from a noncentral-chi-square concentration bound; the expected-power statement alone must not be presented as a realization-wise guarantee.
 \end{remark}
 For replace-one client adjacency, the sparse-query sensitivity before multiplication by $b_t$ is
 \begin{equation}
@@ -204,7 +204,7 @@ The protocol keeps the min-form per-round scaling rule
 with $\sigma_{a,t}$ given by~\eqref{eqn:artificial_noise_calibration} evaluated at $b_t=B_{P,\mathrm{art}}^t(k)$. Thus $b_t$ may vary across rounds through the current public channel state, but it does not depend on current private update norms and requires no cross-round privacy-budget allocation.
 \begin{proposition}[\bf Closed-Form Evaluation of the Min Rule]
     \label{prop:min_closed_form}
-    In every round, $b_t^\star(k)=B_{P,\mathrm{art}}^t(k)=B_P^t(k)/\sqrt F$. In the top-up regime the calibration~\eqref{eqn:artificial_noise_calibration} holds with equality, hence $B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t})=B_{P,\mathrm{art}}^t(k)$ exactly: the injected noise raises the privacy ceiling precisely to the power ceiling and both branches of the min coincide. In the intrinsic regime $\sigma_{a,t}=0$ and $B_{\epsilon,\mathrm{art}}=B_{\epsilon,\mathrm{ex}}(k)\ge B_{P,\mathrm{art}}^t(k)$, so the rule coincides with the classical min rule with the power branch active.
+    In every round, $b_t^\star(k)=B_{P,\mathrm{art}}^t(k)=B_P^t(k)/\sqrt F$. In the top-up regime the calibration~\eqref{eqn:artificial_noise_calibration} holds with equality, hence $B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t})=B_{P,\mathrm{art}}^t(k)$ exactly: the injected noise raises the privacy ceiling precisely to the power ceiling and both branches of the min coincide. In the intrinsic regime $\sigma_{a,t}=0$ and $B_{\epsilon,\mathrm{art}}=B_{\epsilon,\mathrm{ex}}(k)\ge B_{P,\mathrm{art}}^t(k)$, so the noise-taxed power branch is active. This provisioning is conservative relative to the classical intrinsic-only rule because it reserves the maximal artificial-noise budget even when the realized injection vanishes.
 \end{proposition}
 \begin{proof}
     The calibration holds with equality if and only if $b_t^2\Delta^2(k)=m^2(\epsilon)\big(\sigma_{\mathrm{sc}}^2+2Nb_t^2\sigma_{a,t}^2\big)$, which rearranges to $b_t=B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t})$ by~\eqref{eqn:privacy_ceiling_art}; evaluating the calibration at $b_t=B_{P,\mathrm{art}}^t(k)$ then gives both branches of~\eqref{eqn:per_round_scaling} equal to $B_{P,\mathrm{art}}^t(k)$. If the maximum in~\eqref{eqn:artificial_noise_calibration} is inactive, then $\sigma_{a,t}=0$ and $B_{P,\mathrm{art}}^t(k)\le B_{\epsilon,\mathrm{ex}}(k)$, so the power branch is selected.
@@ -533,9 +533,9 @@ The theorem is a per-round statement. The paper does not claim that the complete
     \end{equation}
 \end{lemma}
 \begin{proof}
-    Since $|S_{A,i,\ell}^t[m;k]|\le\eta\tau C$,
+    Since $|S_{A,i,\ell}^t[m;k]|\le c_{\mathrm{tx}}$,
     \begin{equation}
-        |G_{A,\ell}^t[m;k]|\le \eta\tau C\,U_{A,\ell,m}^t(k).
+        |G_{A,\ell}^t[m;k]|\le c_{\mathrm{tx}}\,U_{A,\ell,m}^t(k).
     \end{equation}
     Hence
     \begin{equation}
@@ -601,7 +601,7 @@ The theorem is a per-round statement. The paper does not claim that the complete
         \le
         \sum_{\ell=1}^{S}M
         \left(
-        \sqrt{\frac{Q}{M}}b_t\eta\tau C\sqrt{\Omega_{A,\ell}^{t}(k)}+
+        \sqrt{\frac{Q}{M}}b_tc_{\mathrm{tx}}\sqrt{\Omega_{A,\ell}^{t}(k)}+
         \nu_\delta-A_{\max}^t
         \right)_+^2.
     \end{equation}
@@ -611,7 +611,7 @@ The theorem is a per-round statement. The paper does not claim that the complete
     \begin{equation}
         |y_{A,\ell}^t[n;k,b_t]|
         \le
-        \sqrt{\frac{Q}{M}}b_t\eta\tau C\sqrt{\Omega_{A,\ell}^{t}(k)}+\nu_\delta.
+        \sqrt{\frac{Q}{M}}b_tc_{\mathrm{tx}}\sqrt{\Omega_{A,\ell}^{t}(k)}+\nu_\delta.
     \end{equation}
     The radial residual magnitude is $(|y|-A_{\max}^t)_+$. Summing over all $Q$ samples and applying the normalization $M/Q$ completes the proof.
 \end{proof}

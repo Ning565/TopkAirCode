@@ -71,10 +71,17 @@ def run_one(system: FLSystem, method: str, ratio: float, out_dir: Path, force: b
         "epsilon": system.phy.epsilon,
         "delta": system.phy.delta,
         "p_cap_dbm": system.phy.p_cap_dbm,
+        "p_operating_dbm": (
+            None if math.isnan(system.phy.p_operating_dbm)
+            else system.phy.p_operating_dbm
+        ),
         "adc_backoff_db": system.phy.adc_backoff_db,
         "c_tx": system.phy.c_tx,
         "oversampling": system.phy.oversampling,
-        "privacy_mechanism": "artificial_noise_topup",
+        "dp_mode": system.phy.dp_mode,
+        "privacy_mechanism": (
+            "artificial_noise_topup" if system.phy.dp_mode == "topup" else "disabled"
+        ),
     }
     if metrics_path.exists() and not force:
         if not config_path.exists() or json.loads(config_path.read_text(encoding="utf-8")) != run_config:

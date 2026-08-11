@@ -28,6 +28,7 @@ OUT="${SCRIPT_DIR}/results/exp1_offline"
   --p-cap-dbm 20 \
   --adc-backoff-db 6 \
   --c-tx 0.01 \
+  --dp-mode topup \
   --omega-quantile 0.10 \
   --output-dir "${OUT}"
 

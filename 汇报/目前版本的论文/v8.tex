@@ -226,7 +226,7 @@ the transmitted sparse update is
 {
 \begin{equation}
 	\mathbf{s}_{A,i}^t(k)
-	=\operatorname{clip}\big(\tilde{\mathbf{v}}_{A,i}^t(k),\eta\tau C\big),
+	=\operatorname{clip}\big(\tilde{\mathbf{v}}_{A,i}^t(k),c_{\mathrm{tx}}\big),
 	\label{eqn:pretransmission_clipping}
 \end{equation}
 }
@@ -235,7 +235,7 @@ where the operator is applied coordinate-wise. Thus,
 \begin{equation}
 	\|\mathbf{s}_{A,i}^t(k)\|_0\le k,
 	\qquad
-	\|\mathbf{s}_{A,i}^t(k)\|_\infty\le\eta\tau C.
+	\|\mathbf{s}_{A,i}^t(k)\|_\infty\le c_{\mathrm{tx}}.
 \end{equation}
 }
 Define the pre-transmission clipping bias as $\boldsymbol{\xi}_{A,i}^t(k)=\tilde{\mathbf{v}}_{A,i}^t(k)-\mathbf{s}_{A,i}^t(k)$. Combining the preceding steps yields the exact identity
@@ -282,11 +282,11 @@ with the round-wise effective noise level $\sigma_{\mathrm{eff},t}^2\triangleq\s
 \end{equation}
 
 \subsection{Per-Round Power Constraint and Public Scaling}
-Let $c_{\mathrm{tx}}=\eta\tau C$. With a unitary IFFT, client $i$ has complete-burst average transmit power
+Let $c_{\mathrm{tx}}>0$ be a declared public coordinate threshold fixed independently of the optimizer learning-rate schedule. With a unitary IFFT, client $i$ has complete-burst average transmit power
 \begin{equation}
- P_i^t=\frac{b_t^2}{SM|g_i^t|^2}\big(\|\mathbf s_i^t\|_2^2+\|\mathbf a_i^t\|_2^2\big),
+ P_i^t=\frac{b_t^2}{SM|g_i^t|^2}\big\|\mathbf s_i^t+\mathbf a_i^t\big\|_2^2,
 \end{equation}
-whose expectation replaces $\|\mathbf a_i^t\|_2^2$ by $d\sigma_{a,t}^2$. Since $\|\mathbf a_i^t\|_2^2/(d\sigma_{a,t}^2)$ is a normalized chi-square variable with $d$ degrees of freedom, its relative fluctuation is $\sqrt{2/d}$, negligible for the model dimensions considered here. Using $\|\mathbf s_i^t\|_2\le c_{\mathrm{tx}}\sqrt{k}$, the public ceiling that guarantees $P_i^t\le P_{\mathrm{cap}}$ for every client is
+whose expectation is $\frac{b_t^2}{SM|g_i^t|^2}(\|\mathbf s_i^t\|_2^2+d\sigma_{a,t}^2)$. Conditional on $\mathbf s_i^t$, the realized squared norm is noncentral chi-square after normalization; hence the power ceiling below is an expected-power guarantee. A deterministic or specified high-probability per-burst guarantee requires an explicit noncentral-chi-square concentration margin. Using $\|\mathbf s_i^t\|_2\le c_{\mathrm{tx}}\sqrt{k}$, define
 \begin{equation}
  B_P^t(k)=\min_{1\le i\le N}
  \frac{|g_i^t|\sqrt{SM P_{\mathrm{cap}}}}{c_{\mathrm{tx}}\sqrt{k}}.
@@ -316,7 +316,7 @@ The unique protocol rule used throughout the paper keeps the min form,
  b_t=b_t^\star(k)=\min\{B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t}),B_{P,\mathrm{art}}^t(k)\},
  \label{eqn:bstar_round}
 \end{equation}
-with $\sigma_{a,t}$ evaluated at $b_t=B_{P,\mathrm{art}}^t(k)$. In every round this rule evaluates to $B_{P,\mathrm{art}}^t(k)$: in the top-up regime the calibration holds with equality, so the injected noise raises the privacy ceiling precisely to the power ceiling and both branches coincide; in the intrinsic regime the power branch is selected. It depends only on current public CSI and declared system parameters, never on the realized current private update norm. It requires neither future channel knowledge nor a remaining cross-round privacy budget.
+with $\sigma_{a,t}$ evaluated at $b_t=B_{P,\mathrm{art}}^t(k)$. In every round this rule evaluates to $B_{P,\mathrm{art}}^t(k)$: in the top-up regime the calibration holds with equality, so the injected noise raises the privacy ceiling precisely to the power ceiling and both branches coincide; in the intrinsic regime the noise-taxed power branch is selected and is conservative because it still reserves the maximal injection budget. It depends only on current public CSI and declared system parameters, never on the realized current private update norm. It requires neither future channel knowledge nor a remaining cross-round privacy budget.
 
 \begin{revisionblock}
 \subsection{OFDM PAPR and Receiver Dynamic-Range Model}
@@ -392,7 +392,7 @@ RDP is used only to derive an exact sufficient $(\epsilon,\delta)$ ceiling for o
 \begin{algorithm}[t]
 \small
 \begin{algorithmic}[1]
-\REQUIRE Sparsity $k$, clipping coefficient $C$, local steps $\tau$, and step size $\eta$
+\REQUIRE Sparsity $k$, public coordinate threshold $c_{\mathrm{tx}}$, local steps $\tau$, and step size $\eta$
 \STATE Initialize $\boldsymbol\theta^0$ and $\mathbf e_i^{-1}=\mathbf0$ for all clients
 \FOR{$t=0,\ldots,T-1$}
 \STATE Obtain a successful full-client uplink opportunity and current public channels $\{g_i^t\}_{i=1}^{N}$
@@ -424,14 +424,14 @@ The round-$t$ pre-noise query is
 The BS observes this query plus the real Gaussian randomness formed by the thermal noise of variance $\sigma_{\mathrm{sc}}^2/2$ per coordinate and the $N$ aggregated artificial-noise components, with total per-coordinate variance $\sigma_{\mathrm{eff},t}^2/2$. Subsequent AGC, radial limiting, inverse-gain restoration, FFT recovery, normalization, and model updating are post-processing.
 
 \begin{lemma}[\bf Sparse AirComp Sensitivity]\label{lemma:sen}
-For any mechanism satisfying $\|\mathbf s_i^t(k)\|_0\le k$ and $\|\mathbf s_i^t(k)\|_\infty\le\eta\tau C$,
+For any mechanism satisfying $\|\mathbf s_i^t(k)\|_0\le k$ and $\|\mathbf s_i^t(k)\|_\infty\le c_{\mathrm{tx}}$,
 \begin{equation}
- \Delta_2^t(\mathcal Q)\le b_t\Delta(k),\qquad \Delta(k)=2\eta\tau C\sqrt{k}.
+ \Delta_2^t(\mathcal Q)\le b_t\Delta(k),\qquad \Delta(k)=2c_{\mathrm{tx}}\sqrt{k}.
  \label{eqn:sensitivity_bound}
 \end{equation}
 \end{lemma}
 \begin{proof}
-Under the stated conditioning, adjacent datasets differ in one client $l$, so the query difference is $b_t(\mathbf s_l^t-(\mathbf s_l^t)')$. Both sparse clipped vectors have norm at most $\eta\tau C\sqrt{k}$, and the triangle inequality gives the result even when their selected supports differ.
+Under the stated conditioning, adjacent datasets differ in one client $l$, so the query difference is $b_t(\mathbf s_l^t-(\mathbf s_l^t)')$. Both sparse clipped vectors have norm at most $c_{\mathrm{tx}}\sqrt{k}$, and the triangle inequality gives the result even when their selected supports differ.
 \end{proof}
 
 \begin{theorem}[\bf Per-Round Client-Level DP]\label{thm:dp}
@@ -483,11 +483,11 @@ Define the noiseless aggregate on subcarrier $m$ as
 	G_{A,\ell}^t[m;k]=\sum_iS_{A,i,\ell}^t[m;k].
 \end{equation}
 }
-Since every nonzero entry has magnitude at most $\eta\tau C$,
+Since every nonzero entry has magnitude at most $c_{\mathrm{tx}}$,
 {
 \begin{equation}
 	|G_{A,\ell}^t[m;k]|
-	\le\eta\tau C U_{A,\ell,m}^t(k).
+	\le c_{\mathrm{tx}} U_{A,\ell,m}^t(k).
 \end{equation}
 }
 Consequently, $\|\mathbf{G}_{A,\ell}^t\|_2^2\le\eta^2\tau^2C^2\Omega_{A,\ell}^t(k)$. A unitary IFFT preserves Euclidean energy and $\|\mathbf{x}\|_\infty\le\|\mathbf{x}\|_2$; multiplying by the AirComp factor $b_t^2$ and the oversampling factor $Q/M$ proves~\eqref{eqn:peak_stress_bound}.
@@ -547,7 +547,7 @@ On $\mathcal{N}_{\delta_{\mathrm w}}^t$,
 	E_{\mathrm{clip},A}^t(k,b_t)
 	&\le M\sum_{\ell=1}^{S}
 	\Bigg(
-	 \sqrt{\frac{Q}{M}}b_t\eta\tau C
+	 \sqrt{\frac{Q}{M}}b_tc_{\mathrm{tx}}
 	 \sqrt{\Omega_{A,\ell}^t(k)}
 	\notag\\[-1mm]
 	&\hspace{28mm}
@@ -558,7 +558,7 @@ On $\mathcal{N}_{\delta_{\mathrm w}}^t$,
 }
 \end{corollary}
 \begin{proof}
-Lemma~\ref{lemma:peak_stress_main} and the noise-envelope event give $|y_{A,\ell}^t[n]|\le \sqrt{Q/M}b_t\eta\tau C\sqrt{\Omega_{A,\ell}^t(k)}+\nu_{\delta_{\mathrm w}}$. For radial limiting, the residual magnitude equals $(|y|-A_{\max}^t)_+$. Applying the common magnitude envelope, summing over $Q$ samples, and multiplying by $M/Q$ proves the claim.
+Lemma~\ref{lemma:peak_stress_main} and the noise-envelope event give $|y_{A,\ell}^t[n]|\le \sqrt{Q/M}b_tc_{\mathrm{tx}}\sqrt{\Omega_{A,\ell}^t(k)}+\nu_{\delta_{\mathrm w}}$. For radial limiting, the residual magnitude equals $(|y|-A_{\max}^t)_+$. Applying the common magnitude envelope, summing over $Q$ samples, and multiplying by $M/Q$ proves the claim.
 \end{proof}
 
 Full-update transmission has $k=d$ and complete support overlap, whereas the common-support rand-$k$ baseline also concentrates all clients on the same selected carriers and has $\rho_{\mathrm{Rand}}^t(k)=1$. Data-dependent top-$k$ can exhibit lower or higher overlap depending on update similarity. Its hardware benefit must therefore be assessed through
@@ -574,7 +574,7 @@ at equal-learning-utility or individually optimized operating points. We do not 
 \begin{revisionblock}
 \subsection{Convergence Analysis}
 
-We next develop a convergence bound that explicitly separates the learning-side errors from the physical aggregation errors. Following the decomposition strategy in intrinsic-private sparse AirComp-FL~\cite{zhang2023communication}, the proof first rewrites the update through a virtual sequence that absorbs the local error-feedback memory, and then bounds the per-round descent by the local SGD drift, sparsification residual, pre-transmission clipping bias, channel noise, and radial-clipping distortion. Different from rand-$k$-based PFELS, the proposed analysis keeps the mechanism-dependent retained-energy coefficient of top-$k$ and the waveform-level dynamic-range residual as explicit terms.
+We next develop a convergence bound that explicitly separates the learning-side errors from the physical aggregation errors. Following the decomposition strategy in intrinsic-private sparse AirComp-FL~\cite{zhang2023communication}, the proof first rewrites the update through a virtual sequence that absorbs the local error-feedback memory, and then bounds the per-round descent by the local SGD drift, sparsification residual, pre-transmission clipping bias, effective Gaussian aggregation noise, and radial-clipping distortion. Different from rand-$k$-based PFELS, the proposed analysis keeps the mechanism-dependent retained-energy coefficient of top-$k$ and the waveform-level dynamic-range residual as explicit terms.
 
 For the convergence analysis, we use a mechanism index $A\in\{\mathrm{Top}\text{-}k,\mathrm{Rand}\text{-}k,\mathrm{Full}\}$. The proposed method corresponds to $A=\mathrm{Top}\text{-}k$, while the index is useful for interpreting fair comparisons with rand-$k$ and full-update baselines. Let
 {
@@ -609,7 +609,7 @@ where $\mathbf{e}_{\mathrm{ch}}^t=\mathrm{Re}\{\mathbf{n}^t\}/(b_tN)$ is the rec
 }
 Therefore, the power scaling factor $b_t$ suppresses post-recovery channel noise, while dynamic-range distortion enters the learning dynamics through a separate waveform-level residual term.
 
-Let $\mathcal{F}_t$ be the round-level filtration generated by $\boldsymbol{\theta}^t$, the memories $\{\mathbf{e}_i^{t-1}\}_{i=1}^{N}$, and all randomness realized before round $t$. It excludes the current mini-batches, any current sparsification randomness, receiver noise, and the current dynamic-range residual. We write $\mathbb{E}_t[\cdot]=\mathbb{E}[\cdot\mid\mathcal{F}_t]$; conditional expectations inside local SGD are taken with respect to the corresponding local history and then reduced to $\mathbb{E}_t$ by the tower property. This notation is important because channel noise is conditionally zero-mean, whereas radial-clipping error need not be.
+Let $\mathcal{F}_t$ be the round-level filtration generated by $\boldsymbol{\theta}^t$, the memories $\{\mathbf{e}_i^{t-1}\}_{i=1}^{N}$, and all randomness realized before round $t$. It excludes the current mini-batches, any current sparsification randomness, the current thermal and artificial noises, and the current dynamic-range residual. We write $\mathbb{E}_t[\cdot]=\mathbb{E}[\cdot\mid\mathcal{F}_t]$; conditional expectations inside local SGD are taken with respect to the corresponding local history and then reduced to $\mathbb{E}_t$ by the tower property. This notation is important because the effective Gaussian aggregation noise is conditionally zero-mean, whereas radial-clipping error need not be.
 
 We impose the following assumptions, which separate optimization regularity from mechanism- and receiver-dependent quantities.
 
@@ -942,7 +942,7 @@ Finally, $L$-smoothness converts the virtual trajectory back to the physical mod
 Applying~\eqref{eqn:memory_closure_main} once more gives $\Gamma_A(k)$ and $R_A(k)$, and collecting the learning, channel-noise, and dynamic-range-residual terms yields~\eqref{eqn:dr_bound}. The separately submitted, independently numbered supplementary technical appendix restates the algorithm and assumptions and provides the coefficient-absorption and recursion-closing algebra for this theorem.
 \end{proof}
 
-The three additive groups in~\eqref{eqn:dr_bound} have different origins and different design implications. First, $\Phi_A(k;\bar{\omega}_A,\beta_A)$ is entirely learning-side: it contains the finite-horizon optimization gap, stochastic local gradients, non-IID drift, persistent error memory, and the bias introduced before transmission. Second, the recovered channel-noise term depends on $\sum_t b_t^{-2}$ and therefore favors large AirComp scaling. Third, the dynamic-range contribution is obtained by retaining $\mathbf{e}_{\mathrm{dr},A}^t$ in the physical and virtual recursions and then invoking Lemma~\ref{lemma:dr_error_main}. Consequently, the final $E_{\mathrm{clip},A}^t(k,b_t)$ term is a waveform-explicit upper bound on the finite-range receiver aggregation error, rather than a replacement model that omits $\mathbf{e}_{\mathrm{dr},A}^t$. This term depends on the nonlinear time-domain waveform and can increase even when the linear-receiver SNR is high. Treating the two physical terms as a single independent Gaussian disturbance would lose this distinction.
+The three additive groups in~\eqref{eqn:dr_bound} have different origins and different design implications. First, $\Phi_A(k;\bar{\omega}_A,\beta_A)$ is entirely learning-side: it contains the finite-horizon optimization gap, stochastic local gradients, non-IID drift, persistent error memory, and the bias introduced before transmission. Second, the recovered effective-noise term depends on $\sum_t\sigma_{\mathrm{eff},t}^2/b_t^2$; it favors large AirComp scaling in the intrinsic regime and becomes channel invariant when artificial top-up is active. Third, the dynamic-range contribution is obtained by retaining $\mathbf{e}_{\mathrm{dr},A}^t$ in the physical and virtual recursions and then invoking Lemma~\ref{lemma:dr_error_main}. Consequently, the final $E_{\mathrm{clip},A}^t(k,b_t)$ term is a waveform-explicit upper bound on the finite-range receiver aggregation error, rather than a replacement model that omits $\mathbf{e}_{\mathrm{dr},A}^t$. This term depends on the nonlinear time-domain waveform and can increase even when the linear-receiver SNR is high. Treating the two physical terms as a single independent Gaussian disturbance would lose this distinction.
 
 The result also specializes cleanly. In the infinite-range regime, $E_{\mathrm{clip},A}^t(k,b_t)=0$, and the theorem reduces to
 {
@@ -1075,7 +1075,7 @@ We compare the proposed top-$k$ method with full-dimensional DP AirComp-FL~\cite
 
 Fig.~\ref{fig:exp1} illustrates test accuracy over communication rounds. In the single fixed-seed runs, the proposed operating point reaches 81.42\%, compared with 78.56\% for rand-$k$ and 75.05\% for full upload. This ordering is consistent with the proposed balance between retained update information and post-recovery aggregation noise. Because the three methods use different sparsity ratios, however, the result does not by itself isolate a causal top-$k$ advantage; matched-$k$ and independently optimized comparisons with repeated runs are required for that claim.
 
-Fig.~\ref{fig:exp2} evaluates test accuracy for privacy budgets from $\epsilon=0.2$ to $3.0$. The proposed operating point is higher in these single-run results. \rev{Relative to full-dimensional transmission, element-wise clipping and sparse upload reduce the AirComp sensitivity from the $\mathcal{O}(\sqrt{d})$ scale to the $\mathcal{O}(\sqrt{k})$ scale.} The per-round exact ceiling $B_{\epsilon,\mathrm{ex}}(k)$ therefore permits a larger $b_t$ for smaller $k$, reducing post-recovery noise; the realized receive SNR changes with $\epsilon$ rather than remaining fixed. \rev{At matched $k$ and clipping coefficient, top-$k$ and common-support rand-$k$ share the same worst-case sparse sensitivity order.} The flattening at larger $\epsilon$ is consistent with saturation of the privacy benefit, but the operational regime transition is characterized by the closed form $\epsilon_{\mathrm{loose}}(k)$ rather than by a ceiling crossover.
+Fig.~\ref{fig:exp2} evaluates test accuracy for privacy budgets from $\epsilon=0.2$ to $3.0$ using the legacy intrinsic-noise implementation. The proposed operating point is higher in these single-run results. \rev{Relative to full-dimensional transmission, element-wise clipping and sparse upload reduce the AirComp sensitivity from the $\mathcal{O}(\sqrt{d})$ scale to the $\mathcal{O}(\sqrt{k})$ scale.} In that legacy mechanism, the per-round exact ceiling $B_{\epsilon,\mathrm{ex}}(k)$ permits a larger $b_t$ for smaller $k$, reducing post-recovery noise. \rev{At matched $k$ and clipping threshold, top-$k$ and common-support rand-$k$ share the same worst-case sparse sensitivity order.} These curves do not validate the new artificial-top-up mechanism or its $\epsilon_{\mathrm{loose}}(k)$ transition; that claim requires the separate OFDM rerun declared above.
 
 Fig.~\ref{fig:exp3} reports the legacy client-scalability diagnostic at round $t=100$ using a nested pool of 125 FEMNIST clients. The script measures mean coordinate concurrency, activates a heuristic stress model when this mean exceeds 35.5, adds zero-mean Gaussian distortion with standard deviation $8$ times the overload, and clamps the aggregate coordinate magnitude at $35.5C$. This construction is neither a Bussgang decomposition nor direct execution of~\eqref{eqn:dr_operator}, and it has no parameter mapping to the AGC backoff $\gamma$. The rand-$k$ supports in this script are independently sampled across clients, unlike the common-support PFELS baseline defined in Section~\ref{sec:system_model}; Fig.~\ref{fig:exp3} should therefore be read as a qualitative sparsity diagnostic rather than a PFELS or waveform-level dynamic-range validation. As $N$ increases, the observed degradation is consistent with increasing per-coordinate concurrency. Sparse transmission can reduce expected concurrency in this diagnostic, but no universal reduction in PAPR or clipping energy is claimed without measuring $\rho_A^t(k)$, $\Omega_A^t(k)$, or $E_{\mathrm{clip},A}^t$ under a common physical resource map.
 

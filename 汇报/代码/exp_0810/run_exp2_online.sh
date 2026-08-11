@@ -28,6 +28,7 @@ EXP1_SUMMARY="${SCRIPT_DIR}/results/exp1_offline/summary.json"
   --p-cap-dbm 20 \
   --adc-backoff-db 6 \
   --c-tx 0.01 \
+  --dp-mode topup \
   --selection-metric tail_mean_accuracy \
   --exp1-summary "${EXP1_SUMMARY}" \
   --output-dir "${OUT}"

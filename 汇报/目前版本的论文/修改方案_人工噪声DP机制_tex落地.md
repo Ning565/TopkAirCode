@@ -124,7 +124,7 @@ intrinsic; artificial noise is added only to top up the deficit.
 
 ```latex
 P_{A,i}^{t}
-=\frac{b_t^2}{SM|g_i^t|^2}\Big(\|s_{A,i}^t(k)\|_2^2+\|a_i^t\|_2^2\Big),
+=\frac{b_t^2}{SM|g_i^t|^2}\big\|s_{A,i}^t(k)+a_i^t\big\|_2^2,
 \qquad
 \mathbb E\,P_{A,i}^{t}
 =\frac{b_t^2}{SM|g_i^t|^2}\Big(\|s_{A,i}^t(k)\|_2^2+d\sigma_{a,t}^2\Big).
@@ -146,11 +146,12 @@ $\|s\|_2^2+d\sigma_{a,t}^2\le kc_{\mathrm{tx}}^2F$ with the $k$-independent nois
 
 ```latex
 \begin{remark}[Expected versus realized noise power]
-The constraint is stated for the expected artificial-noise energy. Since
-$\|a_i^t\|_2^2/(d\sigma_{a,t}^2)$ is a normalized chi-square with $d\approx4\times10^{5}$ degrees of
-freedom, its relative fluctuation is $\sqrt{2/d}\approx0.22\%$; replacing $P_{\mathrm{cap}}$ by
-$(1+3\sqrt{2/d})^{-1}P_{\mathrm{cap}}$ converts the statement into a high-probability per-burst
-constraint with negligible loss.
+The constraint is stated in expectation. Conditional on $s_{A,i}^t(k)$,
+$\|s_{A,i}^t(k)+a_i^t\|_2^2/\sigma_{a,t}^2$ is noncentral chi-square with $d$ degrees of freedom
+and noncentrality $\|s_{A,i}^t(k)\|_2^2/\sigma_{a,t}^2$. A deterministic or specified
+high-probability per-burst guarantee therefore requires an explicit power margin obtained from a
+noncentral-chi-square concentration bound; the expected-power statement alone is not a
+realization-wise guarantee.
 \end{remark}
 ```
 
