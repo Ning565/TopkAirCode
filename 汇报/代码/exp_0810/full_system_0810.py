@@ -120,6 +120,18 @@ class PhyConfig:
     adc_backoff_db: float = 6.0      # B_clip; math.inf disables clipping
     max_burst_redraws: int = 10000   # safety bound on feasibility redraws
 
+    # DP protocol switch.  "topup" = artificial-noise top-up design (default);
+    # "off" = no DP at all (sigma_a=0, no power tax) -- used for the stepwise
+    # old/new alignment plan (先通信确定，再PAPR，再DP): anchor the physical layer
+    # to the legacy dimensionless SNR15 operating point before enabling DP.
+    dp_mode: str = "topup"
+    # Open-loop uplink power-control operating point (dBm).  NaN -> use P_cap.
+    # Anchor identity: the legacy SNR15 point corresponds to
+    #   rho_g = g*sqrt(SM*P_op)/sigma_sc = h_th*sqrt(d*SNR15) ~= 357.3,
+    # which at the r=250 m cell edge gives P_op ~= -30.3 dBm (power control,
+    # geometry unchanged; back-solving distance instead would need ~12 km).
+    p_operating_dbm: float = float("nan")
+
     def __post_init__(self) -> None:
         if self.num_clients <= 0 or self.subcarriers <= 0 or self.oversampling <= 0:
             raise ValueError("client/subcarrier/oversampling counts must be positive")
@@ -129,6 +141,10 @@ class PhyConfig:
             raise ValueError("c_tx and P_cap must be positive")
         if not (0.0 <= self.h_cut < 1.0):
             raise ValueError("h_cut must lie in [0,1)")
+        if self.dp_mode not in ("topup", "off"):
+            raise ValueError("dp_mode must be 'topup' or 'off'")
+        if not math.isnan(self.p_operating_dbm) and self.p_operating_dbm > self.p_cap_dbm:
+            raise ValueError("operating power cannot exceed P_cap")
 
     @property
     def sigma_sc2(self) -> float:
@@ -143,6 +159,13 @@ class PhyConfig:
     @property
     def p_cap_w(self) -> float:
         return 10.0 ** ((self.p_cap_dbm - 30.0) / 10.0)
+
+    @property
+    def p_op_w(self) -> float:
+        """Operating transmit power (W): power-control point if set, else P_cap."""
+        if math.isnan(self.p_operating_dbm):
+            return self.p_cap_w
+        return 10.0 ** ((self.p_operating_dbm - 30.0) / 10.0)
 
     @property
     def gamma(self) -> float:
@@ -275,13 +298,20 @@ def scaling_limits(
     ln_d = math.log(1.0 / phy.delta)
     n = float(phy.num_clients)
 
-    b_power = g_abs_min * math.sqrt(s_symbols * phy.subcarriers * phy.p_cap_w) / (phy.c_tx * sqrt_k)
+    # Power ceiling at the OPERATING point (open-loop power control; equals
+    # the P_cap ceiling when no operating point is declared).
+    b_power = g_abs_min * math.sqrt(s_symbols * phy.subcarriers * phy.p_op_w) / (phy.c_tx * sqrt_k)
     b_priv_intrinsic = phy.sigma_sc * m / delta_k
 
-    tax_f = 1.0 + 2.0 * d_model / (n * m * m)
-    b_star = b_power / math.sqrt(tax_f)
-
-    sigma_a_sq = max(0.0, delta_k * delta_k / (m * m) - phy.sigma_sc2 / (b_star * b_star)) / (2.0 * n)
+    if phy.dp_mode == "off":
+        # Alignment mode: no DP claim, no artificial noise, no power tax.
+        tax_f = 1.0
+        b_star = b_power
+        sigma_a_sq = 0.0
+    else:
+        tax_f = 1.0 + 2.0 * d_model / (n * m * m)
+        b_star = b_power / math.sqrt(tax_f)
+        sigma_a_sq = max(0.0, delta_k * delta_k / (m * m) - phy.sigma_sc2 / (b_star * b_star)) / (2.0 * n)
     v_real = phy.sigma_sc2 / 2.0 + b_star * b_star * n * sigma_a_sq
     sigma_dp = math.sqrt(v_real) / (b_star * n)
     expected_power_worst = (
@@ -290,7 +320,7 @@ def scaling_limits(
     )
 
     eps_loose = (math.sqrt(2.0 * max(1, k)) / n + math.sqrt(ln_d)) ** 2 - ln_d
-    rho = 2.0 * g_abs_min * math.sqrt(s_symbols * phy.subcarriers * phy.p_cap_w) / phy.sigma_sc
+    rho = 2.0 * g_abs_min * math.sqrt(s_symbols * phy.subcarriers * phy.p_op_w) / phy.sigma_sc
     m_free_sq = max(0.0, rho * rho - 2.0 * d_model / n)
     eps_free = (math.sqrt(m_free_sq) + math.sqrt(ln_d)) ** 2 - ln_d
 
@@ -298,8 +328,13 @@ def scaling_limits(
     # (b Delta)^2 <= margin^2 (sigma_sc^2 + 2 b^2 N sigma_a^2).
     dp_lhs = (b_star * delta_k) ** 2
     dp_rhs = m * m * (phy.sigma_sc2 + 2.0 * b_star * b_star * n * sigma_a_sq)
-    if dp_lhs > dp_rhs * (1.0 + 1e-10):
+    if phy.dp_mode == "topup" and dp_lhs > dp_rhs * (1.0 + 1e-10):
         raise RuntimeError("artificial-noise calibration violated the DP invariant")
+
+    if phy.dp_mode == "off":
+        regime = "dp_off"
+    else:
+        regime = "loose" if sigma_dp <= phy.c_tx else "dp_noise"
 
     return {
         "b_power": b_power,
@@ -312,7 +347,7 @@ def scaling_limits(
         "free_intrinsic": 1.0 if sigma_a_sq == 0.0 else 0.0,
         "b_privacy_intrinsic": b_priv_intrinsic,
         "eps_free_intrinsic": eps_free,
-        "regime": "loose" if sigma_dp <= phy.c_tx else "dp_noise",
+        "regime": regime,
         "dp_lhs_over_rhs": dp_lhs / max(dp_rhs, 1e-300),
         # Gaussian artificial noise is unbounded, so its power statement is in
         # expectation.  This diagnostic uses the worst aligned client channel.

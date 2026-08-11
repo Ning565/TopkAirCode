@@ -204,7 +204,7 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
             "rho_clip": [], "d_clip": [], "papr_p99_db": [], "papr_p999_db": [], "psr_round_db": [],
             "nmse_clip": [], "nmse_total": [], "silent_ratio": [],
             "b_star": [], "sigma_a": [], "sigma_dp": [], "loose": [], "papr_samples": [],
-            "dp_ratio": [], "power_util": [],
+            "dp_ratio": [], "power_util": [], "sig_energy": [],
         }
         for br in branches
     }
@@ -214,6 +214,7 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
     gx, gy = [], []          # ||gbar||^2  and  (1/N) sum ||g_i||^2
     zeta_samples: List[float] = []
     loss_trace: List[float] = []
+    update_rms_trace: List[float] = []
 
     eta, tau = cfg.lr, cfg.local_steps
     for t in range(args.calib_rounds):
@@ -223,6 +224,9 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
             deltas.append(delta)
             losses.append(loss)
         loss_trace.append(float(np.mean(losses)))
+        # Per-coordinate RMS of the ideal averaged update: absolute-scale
+        # baseline for the chi/sigma_dp feasibility audit (0811 doc).
+        update_rms_trace.append(float(torch.stack(deltas, dim=0).mean(dim=0).pow(2).mean().sqrt()))
         grads = [(-delta / (eta * tau)) for delta in deltas]
         gbar = torch.stack(grads, dim=0).mean(dim=0)
         gx.append(float(gbar.pow(2).sum()))
@@ -264,6 +268,9 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
             a["noise_over_b2"].append(
                 phy.sigma_sc2 / b2 + 2.0 * phy.num_clients * lim["sigma_a_client"] ** 2
             )
+            # ||(1/N) sum_i s_i||^2 of the actually transmitted sparse signals:
+            # denominator of chi_A(k) = d*sigma_dp^2 / E||s_bar||^2.
+            a["sig_energy"].append(float(torch.stack(signals, dim=0).mean(dim=0).pow(2).sum()))
             a["eclip_over_b2"].append(comm["e_clip_over_b2"])
             a["rho_clip"].append(comm["rho_clip"])
             a["d_clip"].append(comm["d_clip"])
@@ -309,6 +316,7 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
         "delta_f": delta_f_hat, "eta": eta, "tau": tau, "T": float(args.rounds),
         "N": float(phy.num_clients), "d": float(d), "sigma_sc2": phy.sigma_sc2,
         "c_tx": phy.c_tx,
+        "update_rms": float(np.median(update_rms_trace)) if update_rms_trace else float("nan"),
     }
     return {"branches": branches, "acc": acc, "consts": consts, "d": d, "S": channel.S}
 
@@ -330,6 +338,8 @@ def build_rows(args, calib: Dict[str, Any]) -> List[Dict[str, Any]]:
         mean_inv_b2 = float(np.mean(a["inv_b2"]))
         mean_noise_over_b2 = float(np.mean(a["noise_over_b2"]))
         mean_eclip_over_b2 = float(np.mean(a["eclip_over_b2"]))
+        mean_sig_energy = float(np.mean(a["sig_energy"]))
+        sigma_dp_mean_v = float(np.mean(a["sigma_dp"]))
         terms = bound_terms(
             omega=omega, beta2=beta2, mean_noise_over_b2=mean_noise_over_b2,
             mean_eclip_over_b2=mean_eclip_over_b2, consts=consts,
@@ -348,9 +358,15 @@ def build_rows(args, calib: Dict[str, Any]) -> List[Dict[str, Any]]:
             "mean_eclip_over_b2": mean_eclip_over_b2,
             "b_star_mean": float(np.mean(a["b_star"])),
             "sigma_a_mean": float(np.mean(a["sigma_a"])),
-            "sigma_dp_mean": float(np.mean(a["sigma_dp"])),
-            "sigma_dp_over_ctx": float(np.mean(a["sigma_dp"])) / consts["c_tx"],
+            "sigma_dp_mean": sigma_dp_mean_v,
+            "sigma_dp_over_ctx": sigma_dp_mean_v / consts["c_tx"],
             "loose_frac": float(np.mean(a["loose"])),
+            # Absolute-scale audit (0811 doc): chi = d*sigma_dp^2/E||s_bar||^2
+            # (full-d noise floor is 2d/(N^2 margin^2)); sigma_dp vs the real
+            # per-coordinate update RMS is the training-viability forecast.
+            "mean_sig_energy": mean_sig_energy,
+            "chi_dp": consts["d"] * sigma_dp_mean_v ** 2 / max(mean_sig_energy, 1e-300),
+            "sigma_dp_over_update_rms": sigma_dp_mean_v / max(consts["update_rms"], 1e-300),
             "dp_lhs_over_rhs_max": float(np.max(a["dp_ratio"])),
             "expected_power_utilization_max": float(np.max(a["power_util"])),
             "rho_clip": float(np.mean(a["rho_clip"])),
@@ -567,6 +583,21 @@ def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_calibrated)
         "interior_check_bound": interior_check(rows, best_bound, "J_bound"),
         "interior_check_calibrated": interior_check(rows, best_calibrated, "J_calibrated"),
         "trend_check": trend_check(rows),
+        # Absolute-scale DP feasibility audit at the officially selected k*
+        # (0811 doc requirement: report, do not hide via normalization).
+        "dp_feasibility": {
+            name: {
+                "chi_dp": row["chi_dp"],
+                "sigma_dp_mean": row["sigma_dp_mean"],
+                "sigma_dp_over_update_rms": row["sigma_dp_over_update_rms"],
+                "update_rms": calib["consts"]["update_rms"],
+                "warning": (
+                    "sigma_dp above 0.02 empirical collapse-onset (old exp3 data)"
+                    if row["sigma_dp_mean"] > 0.02 else ""
+                ),
+            }
+            for name, row in best_calibrated.items()
+        },
     }
     (out_dir / "summary.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -602,6 +633,17 @@ def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_calibrated)
             f.write(f"| {name} | {row['ratio']:.5f} | {row['k']} | "
                     f"{row['sigma_dp_over_ctx']:.2f} | {row['papr_p999_db']:.2f} | "
                     f"{row.get('J_calibrated', float('nan')):.4f} |\n")
+        f.write("\n## DP 绝对尺度可行性审计（chi 与更新 RMS 口径，不经归一化）\n\n")
+        f.write(f"- 更新基准：median per-coordinate update RMS = {c['update_rms']:.3e}\n")
+        f.write("- chi_dp = d*sigma_dp^2/E||s_bar||^2（全 d 维补噪下的下限为 "
+                "2d/(N^2*margin^2)，对比旧实验三：sigma=0.0055 仍训到 81%，"
+                "故 chi 作报告项而非硬门槛）\n\n")
+        f.write("| 方法 | k*/d | chi_dp | sigma_dp | sigma_dp/update_rms | 告警 |\n")
+        f.write("|---|---:|---:|---:|---:|---|\n")
+        for name, row in best_calibrated.items():
+            warn = "COLLAPSE-RISK" if row["sigma_dp_mean"] > 0.02 else ""
+            f.write(f"| {name} | {row['ratio']:.5f} | {row['chi_dp']:.3e} | "
+                    f"{row['sigma_dp_mean']:.3e} | {row['sigma_dp_over_update_rms']:.1f} | {warn} |\n")
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +667,11 @@ def main() -> None:
     parser.add_argument("--p-cap-dbm", type=float, default=20.0)
     parser.add_argument("--adc-backoff-db", type=float, default=6.0, help="use inf to disable clipping")
     parser.add_argument("--c-tx", type=float, default=0.01)
+    parser.add_argument("--dp-mode", default="topup", choices=["topup", "off"],
+                        help="'off' disables DP entirely (stepwise old/new alignment runs)")
+    parser.add_argument("--p-operating-dbm", type=float, default=float("nan"),
+                        help="open-loop power-control point (dBm); NaN uses P_cap; "
+                             "-30.3 reproduces the legacy SNR15 effective noise at r=250m")
     parser.add_argument("--num-clients", type=int, default=20)
     parser.add_argument("--oversampling", type=int, default=4)
     # Learning knobs.
@@ -655,6 +702,8 @@ def main() -> None:
         adc_backoff_db=backoff,
         c_tx=args.c_tx,
         oversampling=args.oversampling,
+        dp_mode=args.dp_mode,
+        p_operating_dbm=args.p_operating_dbm,
     )
     cfg = LearnConfig(
         seed=args.seed,

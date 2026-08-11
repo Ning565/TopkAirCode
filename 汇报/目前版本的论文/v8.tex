@@ -45,7 +45,7 @@ Jinning Song and Dong Liu%
 \maketitle
 
 \begin{abstract}
-Over-the-air computation (AirComp) enables low-latency federated learning while receiver noise can provide intrinsic differential privacy. We develop a dynamic-range-aware top-$k$ sparse OFDM-AirComp-FL framework in which every logical communication round aggregates all $N$ clients and individually satisfies replace-one client-level $(\epsilon,\delta)$-DP. Each client forms an error-compensated update, applies top-$k$ sparsification, stores the sparsification residual, and clips retained entries before pre-equalized OFDM transmission. The public scaling is selected causally as $b_t^\star(k)=\min\{B_{\epsilon,\mathrm{ex}}(k),B_P^t(k)\}$, combining the single-round privacy ceiling with the current-channel power ceiling without future CSI or cross-round privacy allocation. At the receiver, we model the oversampled composite waveform, ideal round-level RMS-AGC, and phase-preserving radial limiting as a finite complex-envelope dynamic-range abstraction. The convergence bound separately tracks learning-side error, recovered channel noise, and the exact waveform-level radial residual. Sparse upload reduces sensitivity from the full-update order $\mathcal O(\sqrt d)$ to $\mathcal O(\sqrt k)$, while Top-$k$ differs from Rand-$k$ through retained information, error feedback, and support-dependent waveform structure rather than a smaller equal-$k$ worst-case sensitivity. The closed-form scaling is optimal for the declared calibrated frozen-statistic surrogate and is not claimed to globally optimize the exact nonlinear waveform functional.
+Over-the-air computation (AirComp) enables low-latency federated learning while receiver noise can supply part of the randomness required by differential privacy. We develop a dynamic-range-aware top-$k$ sparse OFDM-AirComp-FL framework in which every logical communication round aggregates all $N$ clients and individually satisfies replace-one client-level $(\epsilon,\delta)$-DP. Each client forms an error-compensated update, applies top-$k$ sparsification, stores the sparsification residual, and clips retained entries before pre-equalized OFDM transmission. The public scaling is selected causally as $b_t^\star(k)=\min\{B_{\epsilon,\mathrm{art}}(k),B_{P,\mathrm{art}}^t(k)\}$, combining the noise-augmented single-round privacy ceiling with the noise-taxed current-channel power ceiling; each client injects the minimal artificial noise calibrated in closed form from public quantities, so that the injection vanishes and privacy is purely intrinsic whenever the channel noise alone suffices, without future CSI or cross-round privacy allocation. At the receiver, we model the oversampled composite waveform, ideal round-level RMS-AGC, and phase-preserving radial limiting as a finite complex-envelope dynamic-range abstraction. The convergence bound separately tracks learning-side error, recovered effective noise, and the exact waveform-level radial residual. Sparse upload reduces sensitivity from the full-update order $\mathcal O(\sqrt d)$ to $\mathcal O(\sqrt k)$, while Top-$k$ differs from Rand-$k$ through retained information, error feedback, and support-dependent waveform structure rather than a smaller equal-$k$ worst-case sensitivity. The closed-form scaling is optimal for the declared calibrated frozen-statistic surrogate and is not claimed to globally optimize the exact nonlinear waveform functional.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -59,7 +59,7 @@ Federated learning (FL) enables edge clients to train a shared model without tra
 
 Over-the-air computation (AirComp) offers a communication primitive tailored to the aggregation structure of FL. Instead of assigning an orthogonal resource block to every participating client, AirComp aligns analog update symbols over a wireless multiple-access channel and obtains their arithmetic sum directly from waveform superposition~\cite{zhu2019broadband,yang2020federated}. Broadband analog aggregation and analog distributed SGD have demonstrated that such computation-oriented transmission can substantially reduce aggregation latency and can incorporate sparse updates and error accumulation into the learning process~\cite{amiri2020machine}. A recent comparison of digital and analog wireless FL further shows that analog aggregation is particularly attractive when bandwidth and latency prevent the network from serving many clients orthogonally~\cite{yao2024wireless}. This efficiency comes with a defining cross-layer property: channel noise and receiver distortion are not removed before aggregation, but enter the global learning update itself.
 
-The same channel noise can also be used as the randomness required by differential privacy (DP). With uncoded transmission, suitable power control can provide intrinsic privacy without transmitting dedicated artificial noise~\cite{liu2020privacy,koda2020differentially}. This observation has motivated sparse intrinsic-private aggregation~\cite{zhang2023communication}, MIMO transceiver designs that account for privacy leakage~\cite{liu2024mimo}, and communication--learning co-design with client sampling~\cite{hu2024communication}. Intrinsic privacy nevertheless creates a nonstandard power tradeoff. A larger AirComp scaling factor improves the post-recovery signal-to-noise ratio, but also increases the distinguishability of adjacent client datasets at the channel output. A per-round client-level DP requirement limits the feasible scaling in each communication round, while the current public channel determines the simultaneous power ceiling. Their intersection produces a causal channel-adaptive closed-form scaling, and the resulting recovered aggregation noise directly affects convergence.
+The same channel noise can also be used as the randomness required by differential privacy (DP). With uncoded transmission, suitable power control can provide intrinsic privacy without transmitting dedicated artificial noise~\cite{liu2020privacy,koda2020differentially}. This observation has motivated sparse intrinsic-private aggregation~\cite{zhang2023communication}, MIMO transceiver designs that account for privacy leakage~\cite{liu2024mimo}, and communication--learning co-design with client sampling~\cite{hu2024communication}. Intrinsic privacy nevertheless creates a nonstandard power tradeoff. A larger AirComp scaling factor improves the post-recovery signal-to-noise ratio, but also increases the distinguishability of adjacent client datasets at the channel output. A per-round client-level DP requirement limits the feasible scaling in each communication round, while the current public channel determines the simultaneous power ceiling. Their intersection produces a causal channel-adaptive closed-form scaling, and the resulting recovered aggregation noise directly affects convergence. However, relying on receiver noise alone forces either an astronomical privacy budget or a transmit power reduced far below the receiver hardware operating region: the power--privacy crossover scales with the squared burst-energy signal-to-noise ratio of the weakest client. We therefore adopt a channel-noise-aware hybrid mechanism in which artificial noise only tops up the intrinsic deficit.
 
 \rev{Existing analyses of private AirComp-FL largely adopt a linear frequency-domain receiver model. In a broadband OFDM implementation, however, the receiver front end does not separately observe the aggregate on each subcarrier. The frequency-domain components are first combined by the inverse fast Fourier transform (IFFT), the clients' waveforms superpose over the air, and the finite-range receiver processes the resulting composite time-domain signal before fast Fourier transform (FFT) recovery. OFDM waveforms can exhibit large peak excursions and hence require sufficient receiver headroom; when the composite input exceeds the declared complex-envelope range, clipping distorts occupied and otherwise empty subcarriers after the FFT~\cite{rietman2008peak,dardari2006joint}. This effect is especially consequential for AirComp because the desired output is an analog arithmetic function rather than an individually decoded codeword. Receiver clipping therefore produces a signal-dependent aggregation error that must be propagated into the learning analysis, rather than being treated only as a conventional link-level impairment.}
 
@@ -69,13 +69,13 @@ The first challenge is to characterize the resulting privacy-learning coupling w
 
 \rev{The second challenge is to connect sparse support selection to receiver nonlinearity and then to learning. Frequency-domain support overlap affects the composite OFDM waveform, but neither overlap nor subcarrier concurrency is itself PAPR. The actual time-domain clipping residual must be transformed back to the aggregation domain and included in the global update before a dynamic-range-aware convergence bound or sparsity-selection rule can be justified.}
 
-To address these challenges, we develop a dynamic-range-aware top-$k$ sparse OFDM-AirComp-FL framework with per-round intrinsic channel-noise privacy. Every counted logical round aggregates all $N$ clients; a candidate deep-fade burst is deferred and retried with the same client set, so physical waiting changes latency rather than the learning participation set. The public AirComp scaling is selected causally from the current public channel and a single-round privacy ceiling. The main contributions are:
+To address these challenges, we develop a dynamic-range-aware top-$k$ sparse OFDM-AirComp-FL framework with per-round channel-noise-aware minimal-artificial-noise privacy. Every counted logical round aggregates all $N$ clients; a candidate deep-fade burst is deferred and retried with the same client set, so physical waiting changes latency rather than the learning participation set. The public AirComp scaling is selected causally from the current public channel and the noise-augmented single-round privacy ceiling. The main contributions are:
 \begin{itemize}
 \item \emph{Dynamic-Range-Aware Sparse OFDM-AirComp-FL:} We formulate fixed-grid OFDM mapping, full-client coherent AirComp, oversampled reception, ideal round-level RMS-AGC, phase-preserving radial limiting, and FFT recovery.
-\item \emph{Per-Round Intrinsic Client-Level Privacy:} We derive an exact sufficient scaling ceiling under replace-one client adjacency. Every communication round individually satisfies $(\epsilon,\delta)$-DP; no complete-training guarantee with the same parameters is claimed without a separate composition accountant.
+\item \emph{Per-Round Channel-Noise-Aware Client-Level Privacy:} We derive the noise-augmented privacy ceiling and the minimal closed-form artificial-noise calibration under replace-one client adjacency; the calibration reduces verbatim to intrinsic-noise designs when no injection is needed. Every communication round individually satisfies $(\epsilon,\delta)$-DP; no complete-training guarantee with the same parameters is claimed without a separate composition accountant.
 \item \emph{Fixed-Participation Convergence Analysis:} We separate learning-side error, recovered channel noise, and the exact waveform-level dynamic-range residual. Since every logical round aggregates all clients, no random wireless-participation variance is introduced.
 \item \emph{Closed-Form Channel-Adaptive Scaling:} For each candidate sparsity and current round, the calibrated surrogate is minimized by
-$ b_t^\star(k)=\min\{B_{\epsilon,\mathrm{ex}}(k),B_P^t(k)\}$,
+$ b_t^\star(k)=\min\{B_{\epsilon,\mathrm{art}}(k),B_{P,\mathrm{art}}^t(k)\}$,
 which requires current public CSI but neither future channels nor cross-round privacy-budget allocation.
 \end{itemize}
 
@@ -92,9 +92,9 @@ These studies establish the communication and learning foundations of AirComp-FL
 
 \subsection{Differentially Private AirComp-FL}
 
-DP mechanisms for FL commonly inject calibrated artificial noise into local updates or aggregation results; convergence analyses quantify the resulting privacy-utility tradeoff~\cite{wei2020federated}. Wireless aggregation creates an alternative source of privacy randomness. Liu and Simeone showed that uncoded transmission can provide privacy without an additional utility loss in suitable SNR regimes and derived privacy-aware adaptive power allocation for OMA and NOMA~\cite{liu2020privacy}. Receiver-noise-based power adaptation was also studied directly for AirComp-FL~\cite{koda2020differentially}. Subsequent work has considered the additional leakage enabled by a multi-antenna receiver and jointly designed the transceiver and privacy mechanism~\cite{liu2024mimo}, while client sampling, the number of rounds, and transceiver variables have been co-designed to improve the DP-learning tradeoff~\cite{hu2024communication}.
+DP mechanisms for FL commonly inject calibrated artificial noise into local updates or aggregation results; convergence analyses quantify the resulting privacy-utility tradeoff~\cite{wei2020federated}. Wireless aggregation creates an alternative source of privacy randomness. Liu and Simeone showed that uncoded transmission can provide privacy without an additional utility loss in suitable SNR regimes and derived privacy-aware adaptive power allocation for OMA and NOMA~\cite{liu2020privacy}. Receiver-noise-based power adaptation was also studied directly for AirComp-FL~\cite{koda2020differentially}. Subsequent work has considered the additional leakage enabled by a multi-antenna receiver and jointly designed the transceiver and privacy mechanism~\cite{liu2024mimo}, while client sampling, the number of rounds, and transceiver variables have been co-designed to improve the DP-learning tradeoff~\cite{hu2024communication}. In our design the free-region structure of these intrinsic-noise works is preserved as a degenerate regime: artificial noise is injected only when the intrinsic noise is insufficient. Compared with the transmit-side noise/power split of~\cite{liu2024mimo}, which optimizes the two power fractions numerically, our split is closed form, uses a single receive antenna, protects client-level adjacency, and couples the noise scale to the sparsity level through $\Delta(k)$.
 
-The closest work to ours is PFELS~\cite{zhang2023communication}, which combines common rand-$k$ projection, client-level intrinsic privacy, adaptive power control, and nonconvex convergence analysis to reduce communication and energy costs. Our focus is complementary but distinct. We use importance-driven top-$k$ with error feedback, model the complete OFDM time-domain finite-range receiver path, retain a mechanism-dependent energy-retention factor in the convergence analysis, and include the radial-clipping residual in both the convergence bound and the sparsity-design criterion. We also avoid attributing a worst-case DP sensitivity advantage to top-$k$ over rand-$k$ at equal sparsity.
+The closest work to ours is PFELS~\cite{zhang2023communication}, which combines common rand-$k$ projection, client-level intrinsic privacy, adaptive power control, and nonconvex convergence analysis to reduce communication and energy costs. Our focus is complementary but distinct. We use importance-driven top-$k$ with error feedback, model the complete OFDM time-domain finite-range receiver path, retain a mechanism-dependent energy-retention factor in the convergence analysis, and include the radial-clipping residual in both the convergence bound and the sparsity-design criterion. We also avoid attributing a worst-case DP sensitivity advantage to top-$k$ over rand-$k$ at equal sparsity, and we do not rely on intrinsic noise alone at realistic link budgets.
 
 \subsection{Sparsification and Hardware-Aware OFDM Reception}
 
@@ -133,6 +133,10 @@ This section develops the complete path followed by one model update, from local
 		& Transmitted sparse update and pre-transmission clipping bias \\
 		$b_t,h_{\mathrm{th}},P_{\max}$
 		& AirComp scaling, inversion threshold, and client power budget \\
+		$\mathbf a_i^t,\sigma_{a,t},\sigma_{\mathrm{eff},t},F$
+		& Client artificial noise, its calibration, round-wise effective noise, and noise power tax \\
+		$m(\epsilon),\sigma_{\mathrm{dp}},\epsilon_{\mathrm{loose}}(k)$
+		& Privacy margin, per-coordinate recovered privacy noise, and loose-budget threshold \\
 		$E_{\mathrm{clip},A}^t,\mathbf{e}_{\mathrm{dr},A}^t$
 		& Time-domain clipping energy and equivalent aggregation error \\
 		$\bar\omega_A(k),\mu_A(k),\rho_A^t(k)$
@@ -249,57 +253,70 @@ Only the sparsification residual is recycled in~\eqref{eqn:error_memory_update};
 \subsection{Over-the-Air Aggregation Model}
 Every method uses the same complete resource grid. Each $d$-dimensional real vector $\mathbf s_i^t$ is mapped to $S=\lceil d/M\rceil$ OFDM symbols with $M$ data subcarriers. One real coordinate occupies one complex subcarrier resource; no Hermitian symmetry or I/Q two-coordinate packing is used. Sparsification sets unselected coordinates to zero but does not reduce the number of OFDM symbols, occupied system bandwidth, or nominal round duration.
 
-Let $g_i^t=\sqrt{\beta_i}h_i^t$ be the public client-level channel coefficient in round $t$. A logical learning round is counted only when all $N$ clients satisfy the public success condition $|h_i^t|\ge h_{\mathrm{cut}}$ and complete the scheduled pre-equalized burst. Client $i$ transmits
+Let $g_i^t=\sqrt{\beta_i}h_i^t$ be the public client-level channel coefficient in round $t$. A logical learning round is counted only when all $N$ clients satisfy the public success condition $|h_i^t|\ge h_{\mathrm{cut}}$ and complete the scheduled pre-equalized burst. In addition to the update, client $i$ draws an artificial-noise vector $\mathbf a_i^t\sim\mathcal N(\mathbf 0,\sigma_{a,t}^2\mathbf I_d)$, independent across clients and rounds, real-valued, and mapped to the same $d$ grid coordinates as the update; let $A_{i,\ell}^t[m]$ denote its grid image. Client $i$ transmits
 \begin{equation}
- X_{i,\ell}^t[m]=\frac{b_t}{g_i^t}S_{i,\ell}^t[m],\qquad i=1,\ldots,N.
+ X_{i,\ell}^t[m]=\frac{b_t}{g_i^t}\big(S_{i,\ell}^t[m]+A_{i,\ell}^t[m]\big),\qquad i=1,\ldots,N.
 \end{equation}
 The BS observes
 \begin{equation}
- Y_\ell^t[m]=b_t\sum_{i=1}^{N}S_{i,\ell}^t[m]+N_\ell^t[m],
+ Y_\ell^t[m]=b_t\sum_{i=1}^{N}\big(S_{i,\ell}^t[m]+A_{i,\ell}^t[m]\big)+N_\ell^t[m],
  \label{eqn:freq_aircomp}
 \end{equation}
-where $N_\ell^t[m]\sim\mathcal{CN}(0,\sigma_{\mathrm{sc}}^2)$. The ideal linear recovery is
+where $N_\ell^t[m]\sim\mathcal{CN}(0,\sigma_{\mathrm{sc}}^2)$. The Gaussian randomness used for the per-round privacy guarantee is the superposition of the real part of the thermal noise and the $N$ aggregated artificial-noise components. The ideal linear recovery is
 \begin{equation}
  \hat S_\ell^t[m]=\frac1N\sum_{i=1}^{N}S_{i,\ell}^t[m]
- +\frac{\mathrm{Re}\{N_\ell^t[m]\}}{b_tN},
+ +\frac1N\sum_{i=1}^{N}A_{i,\ell}^t[m]+\frac{\mathrm{Re}\{N_\ell^t[m]\}}{b_tN},
  \label{eqn:recover}
 \end{equation}
 and hence
 \begin{equation}
- \hat{\mathbf s}_{\mathrm{lin}}^t=\frac1N\sum_{i=1}^{N}\mathbf s_i^t+\mathbf e_{\mathrm{ch}}^t,
- \qquad \mathbf e_{\mathrm{ch}}^t=\frac{\mathrm{Re}\{\mathbf N_{\mathcal D}^t\}}{b_tN},
+ \hat{\mathbf s}_{\mathrm{lin}}^t=\frac1N\sum_{i=1}^{N}\mathbf s_i^t+\mathbf e_{\mathrm{noise}}^t,
+ \qquad \mathbf e_{\mathrm{noise}}^t=\frac1N\sum_{i=1}^{N}\mathbf a_i^t+\frac{\mathrm{Re}\{\mathbf N_{\mathcal D}^t\}}{b_tN},
  \label{eqn:linear_recovery}
 \end{equation}
-with
+with the round-wise effective noise level $\sigma_{\mathrm{eff},t}^2\triangleq\sigma_{\mathrm{sc}}^2+2Nb_t^2\sigma_{a,t}^2$ and
 \begin{equation}
- \mathbb E\|\mathbf e_{\mathrm{ch}}^t\|_2^2
- =\frac{d\sigma_{\mathrm{sc}}^2}{2b_t^2N^2}.
+ \mathbb E\|\mathbf e_{\mathrm{noise}}^t\|_2^2
+ =\frac{d\,\sigma_{\mathrm{eff},t}^2}{2b_t^2N^2}.
  \label{eqn:channel_error_energy}
 \end{equation}
 
 \subsection{Per-Round Power Constraint and Public Scaling}
 Let $c_{\mathrm{tx}}=\eta\tau C$. With a unitary IFFT, client $i$ has complete-burst average transmit power
 \begin{equation}
- P_i^t=\frac{b_t^2}{SM|g_i^t|^2}\|\mathbf s_i^t\|_2^2.
+ P_i^t=\frac{b_t^2}{SM|g_i^t|^2}\big(\|\mathbf s_i^t\|_2^2+\|\mathbf a_i^t\|_2^2\big),
 \end{equation}
-Using $\|\mathbf s_i^t\|_2\le c_{\mathrm{tx}}\sqrt{k}$, the public ceiling that guarantees $P_i^t\le P_{\mathrm{cap}}$ for every client is
+whose expectation replaces $\|\mathbf a_i^t\|_2^2$ by $d\sigma_{a,t}^2$. Since $\|\mathbf a_i^t\|_2^2/(d\sigma_{a,t}^2)$ is a normalized chi-square variable with $d$ degrees of freedom, its relative fluctuation is $\sqrt{2/d}$, negligible for the model dimensions considered here. Using $\|\mathbf s_i^t\|_2\le c_{\mathrm{tx}}\sqrt{k}$, the public ceiling that guarantees $P_i^t\le P_{\mathrm{cap}}$ for every client is
 \begin{equation}
  B_P^t(k)=\min_{1\le i\le N}
  \frac{|g_i^t|\sqrt{SM P_{\mathrm{cap}}}}{c_{\mathrm{tx}}\sqrt{k}}.
  \label{eqn:power}
 \end{equation}
-For replace-one client adjacency, define $\Delta(k)=2c_{\mathrm{tx}}\sqrt{k}$ and the exact sufficient single-round privacy ceiling
+For replace-one client adjacency, define $\Delta(k)=2c_{\mathrm{tx}}\sqrt{k}$, the privacy margin $m(\epsilon)\triangleq\sqrt{\epsilon+\ln(1/\delta)}-\sqrt{\ln(1/\delta)}$, and the intrinsic single-round privacy ceiling
 \begin{equation}
- B_{\epsilon,\mathrm{ex}}(k)=\frac{\sigma_{\mathrm{sc}}}{\Delta(k)}
- \left(\sqrt{\epsilon+\ln(1/\delta)}-\sqrt{\ln(1/\delta)}\right).
+ B_{\epsilon,\mathrm{ex}}(k)=\frac{\sigma_{\mathrm{sc}}}{\Delta(k)}m(\epsilon).
  \label{eqn:B_eps_exact}
 \end{equation}
-The unique protocol rule used throughout the paper is
+Each client injects the minimal artificial noise calibrated in closed form from public quantities only,
 \begin{equation}
- b_t=b_t^\star(k)=\min\{B_{\epsilon,\mathrm{ex}}(k),B_P^t(k)\}.
+ \sigma_{a,t}^2=\frac{1}{2N}\max\!\left\{0,\;\frac{\Delta^2(k)}{m^2(\epsilon)}-\frac{\sigma_{\mathrm{sc}}^2}{b_t^2}\right\},
+ \label{eqn:an_calibration}
+\end{equation}
+so that no additional signaling beyond the existing broadcast of $b_t$ is required. By~\eqref{eqn:an_calibration}, $\sigma_{a,t}=0$ if and only if $b_t\le B_{\epsilon,\mathrm{ex}}(k)$: the intrinsic regime of prior power-control designs~\cite{liu2020privacy,koda2020differentially} is recovered verbatim. Injecting artificial noise raises the privacy ceiling to the noise-augmented value
+\begin{equation}
+ B_{\epsilon,\mathrm{art}}(k;\sigma_a)=\frac{m(\epsilon)\,\sigma_{\mathrm{sc}}}{\sqrt{\big(\Delta^2(k)-2Nm^2(\epsilon)\sigma_a^2\big)_+}},
+\end{equation}
+which is increasing in $\sigma_a$ and equals $+\infty$ once the injected noise alone suffices. Provisioning the power budget for the maximal injection level defines the noise-taxed power ceiling
+\begin{equation}
+ B_{P,\mathrm{art}}^t(k)=\frac{B_P^t(k)}{\sqrt F},
+ \qquad F\triangleq1+\frac{2d}{Nm^2(\epsilon)}.
+\end{equation}
+The unique protocol rule used throughout the paper keeps the min form,
+\begin{equation}
+ b_t=b_t^\star(k)=\min\{B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t}),B_{P,\mathrm{art}}^t(k)\},
  \label{eqn:bstar_round}
 \end{equation}
-It depends only on current public CSI and declared system parameters, never on the realized current private update norm. It requires neither future channel knowledge nor a remaining cross-round privacy budget.
+with $\sigma_{a,t}$ evaluated at $b_t=B_{P,\mathrm{art}}^t(k)$. In every round this rule evaluates to $B_{P,\mathrm{art}}^t(k)$: in the top-up regime the calibration holds with equality, so the injected noise raises the privacy ceiling precisely to the power ceiling and both branches coincide; in the intrinsic regime the power branch is selected. It depends only on current public CSI and declared system parameters, never on the realized current private update norm. It requires neither future channel knowledge nor a remaining cross-round privacy budget.
 
 \begin{revisionblock}
 \subsection{OFDM PAPR and Receiver Dynamic-Range Model}
@@ -343,13 +360,13 @@ Let $\mathbf R_{\mathrm{dr},\mathcal D}^t$ be the residual after unitary FFT, or
 The physical update is
 \begin{equation}
  \boldsymbol\theta^{t+1}=\boldsymbol\theta^t+\frac1N\sum_{i=1}^{N}\mathbf s_i^t
- +\mathbf e_{\mathrm{ch}}^t+\mathbf e_{\mathrm{dr}}^t.
+ +\mathbf e_{\mathrm{noise}}^t+\mathbf e_{\mathrm{dr}}^t.
  \label{eqn:physical_update_system}
 \end{equation}
 No wireless-participation sampling error appears. Ideal RMS-AGC removes common absolute amplitude scale; $b_t$ affects noisy clipping statistics through the signal-to-noise ratio rather than by an unnormalized absolute-amplitude mechanism. Because the exact radial residual can therefore depend on $b_t$, the closed form in~\eqref{eqn:bstar_round} is asserted as optimal for the calibrated frozen-statistic surrogate, not as an unconditional global optimum of the nonlinear waveform functional.
 \end{revisionblock}
 \subsection{Threat Model and Privacy Definitions}
-We consider an honest-but-curious BS that follows the declared full-client AirComp protocol but may use each received signal and released global model to infer a client's data. The protected object is one client's complete local dataset, and adjacency is replace-one client adjacency. For the privacy analysis of round $t$, the preceding public transcript, current public CSI, public $b_t$, and data-independent randomness of unchanged clients are conditioned to be identical under adjacent executions. The pre-noise query is
+We consider an honest-but-curious BS that follows the declared full-client AirComp protocol but may use each received signal and released global model to infer a client's data. The protected object is one client's complete local dataset, and adjacency is replace-one client adjacency. For the privacy analysis of round $t$, the preceding public transcript, current public CSI, public $b_t$, and the data-dependent signals of unchanged clients are conditioned to be identical under adjacent executions, while the thermal noise and all $N$ artificial-noise vectors act as mechanism randomness. The honest-but-curious BS observes only the superposition $b_t\sum_i(\mathbf s_i^t+\mathbf a_i^t)+\mathbf N^t$ and cannot separate any individual artificial-noise component from the thermal noise~\cite{liu2024mimo}. The pre-noise query is
 \begin{equation}
  \mathcal Q_t(\mathcal D)=b_t\sum_{i=1}^{N}\mathbf s_i^t(\mathcal D_i).
  \label{eqn:privacy_query_system}
@@ -379,10 +396,11 @@ RDP is used only to derive an exact sufficient $(\epsilon,\delta)$ ceiling for o
 \STATE Initialize $\boldsymbol\theta^0$ and $\mathbf e_i^{-1}=\mathbf0$ for all clients
 \FOR{$t=0,\ldots,T-1$}
 \STATE Obtain a successful full-client uplink opportunity and current public channels $\{g_i^t\}_{i=1}^{N}$
-\STATE Compute $b_t^\star(k)=\min\{B_{\epsilon,\mathrm{ex}}(k),B_P^t(k)\}$ and broadcast $\boldsymbol\theta^t$, $b_t^\star(k)$, and the fixed resource map
+\STATE Compute $\sigma_{a,t}$ from~\eqref{eqn:an_calibration} and $b_t^\star(k)=\min\{B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t}),B_{P,\mathrm{art}}^t(k)\}$ and broadcast $\boldsymbol\theta^t$, $b_t^\star(k)$, and the fixed resource map
 \FOR{each client $i=1,\ldots,N$ in parallel}
 \STATE Run local SGD, form the error-compensated sparse update, store the sparsification residual, and apply element-wise clipping
-\STATE Transmit through pre-equalized OFDM-AirComp
+\STATE Draw $\mathbf a_i^t\sim\mathcal N(\mathbf 0,\sigma_{a,t}^2\mathbf I_d)$ from the public calibration~\eqref{eqn:an_calibration}
+\STATE Transmit the pre-equalized superposition of the update and $\mathbf a_i^t$ through OFDM-AirComp
 \ENDFOR
 \STATE Apply ideal round-level RMS-AGC, radial limiting, explicit inverse-gain restoration, and FFT recovery
 \STATE Update $\boldsymbol\theta^{t+1}=\boldsymbol\theta^t+\hat{\mathbf s}_{\mathrm{dr}}^t$
@@ -403,7 +421,7 @@ The round-$t$ pre-noise query is
  \mathcal Q_t(\mathcal D)=b_t\sum_{i=1}^{N}\mathbf s_i^t(k).
  \label{eqn:privacy_query}
 \end{equation}
-The BS observes this query plus real Gaussian noise of variance $\sigma_{\mathrm{sc}}^2/2$ per coordinate. Subsequent AGC, radial limiting, inverse-gain restoration, FFT recovery, normalization, and model updating are post-processing.
+The BS observes this query plus the real Gaussian randomness formed by the thermal noise of variance $\sigma_{\mathrm{sc}}^2/2$ per coordinate and the $N$ aggregated artificial-noise components, with total per-coordinate variance $\sigma_{\mathrm{eff},t}^2/2$. Subsequent AGC, radial limiting, inverse-gain restoration, FFT recovery, normalization, and model updating are post-processing.
 
 \begin{lemma}[\bf Sparse AirComp Sensitivity]\label{lemma:sen}
 For any mechanism satisfying $\|\mathbf s_i^t(k)\|_0\le k$ and $\|\mathbf s_i^t(k)\|_\infty\le\eta\tau C$,
@@ -416,22 +434,17 @@ For any mechanism satisfying $\|\mathbf s_i^t(k)\|_0\le k$ and $\|\mathbf s_i^t(
 Under the stated conditioning, adjacent datasets differ in one client $l$, so the query difference is $b_t(\mathbf s_l^t-(\mathbf s_l^t)')$. Both sparse clipped vectors have norm at most $\eta\tau C\sqrt{k}$, and the triangle inequality gives the result even when their selected supports differ.
 \end{proof}
 
-\begin{theorem}[\bf Per-Round Client-Level Intrinsic DP]\label{thm:dp}
-Every communication round individually satisfies replace-one client-level $(\epsilon,\delta)$-DP if
-\begin{equation}
- 0<b_t\le B_{\epsilon,\mathrm{ex}}(k),
- \label{eqn:privacy_exact}
-\end{equation}
-where $B_{\epsilon,\mathrm{ex}}(k)$ is defined in~\eqref{eqn:B_eps_exact}. Therefore the protocol scaling~\eqref{eqn:bstar_round} is private and power feasible in every round.
+\begin{theorem}[\bf Per-Round Client-Level DP]\label{thm:dp}
+Every communication round individually satisfies replace-one client-level $(\epsilon,\delta)$-DP under the protocol scaling~\eqref{eqn:bstar_round} and the calibration~\eqref{eqn:an_calibration}, in both the intrinsic and top-up regimes. In the intrinsic regime this reduces to $0<b_t\le B_{\epsilon,\mathrm{ex}}(k)$ with~\eqref{eqn:B_eps_exact}. Therefore the protocol scaling~\eqref{eqn:bstar_round} is private and power feasible in every round.
 \end{theorem}
 \begin{proof}
-For RDP order $\alpha>1$, the conditional Gaussian mechanism has privacy cost at most $\alpha b_t^2\Delta^2(k)/\sigma_{\mathrm{sc}}^2$. The RDP-to-DP conversion gives $\epsilon(\alpha)=\alpha b_t^2\Delta^2(k)/\sigma_{\mathrm{sc}}^2+\ln(1/\delta)/(\alpha-1)$. Optimizing over $\alpha$ and solving for $b_t$ yields~\eqref{eqn:B_eps_exact}.
+For RDP order $\alpha>1$, the conditional Gaussian mechanism with effective noise variance $\sigma_{\mathrm{eff},t}^2/2$ per coordinate has privacy cost at most $\alpha b_t^2\Delta^2(k)/\sigma_{\mathrm{eff},t}^2$. The calibration~\eqref{eqn:an_calibration} enforces $b_t^2\Delta^2(k)\le m^2(\epsilon)\sigma_{\mathrm{eff},t}^2$; the RDP-to-DP conversion then yields $(\epsilon,\delta)$-DP after optimizing over $\alpha$. The artificial noise of every client is data independent, identically distributed under adjacent executions, and superposed at the receiver~\cite{liu2024mimo}, so it is valid mechanism randomness. Evaluating the calibration at $\sigma_{a,t}=0$ reproduces~\eqref{eqn:B_eps_exact}.
 \end{proof}
 
-The guarantee is explicitly per communication round. Observing all $T$ rounds generally requires composition and is not claimed to preserve the same $(\epsilon,\delta)$. Since $B_{\epsilon,\mathrm{ex}}(k)\propto1/\sqrt{k}$, sparse upload permits a larger private scaling than full upload. At equal $k$ and clipping threshold, Top-$k$ and Rand-$k$ have the same worst-case sensitivity ceiling.
+The guarantee is explicitly per communication round. Observing all $T$ rounds generally requires composition and is not claimed to preserve the same $(\epsilon,\delta)$. Since $\Delta(k)\propto\sqrt k$, sparse upload directly reduces the required noise level: the per-coordinate recovered privacy noise is $\sigma_{\mathrm{dp}}=\sqrt2\,c_{\mathrm{tx}}\sqrt k/(Nm(\epsilon))$, which falls below the coordinate clipping threshold exactly when $\epsilon\ge\epsilon_{\mathrm{loose}}(k)=(\sqrt{2k}/N+\sqrt{\ln(1/\delta)})^2-\ln(1/\delta)$; the sparsity--privacy coupling therefore enters the recovered-noise term explicitly. At equal $k$ and clipping threshold, Top-$k$ and Rand-$k$ have the same worst-case sensitivity ceiling.
 
 \begin{remark}[\bf Privacy--Power Coupling]
-The current public channel changes $B_P^t(k)$, whereas the declared per-round privacy parameters determine $B_{\epsilon,\mathrm{ex}}(k)$. Their minimum gives a causal channel-adaptive $b_t^\star(k)$ and directly determines recovered noise.
+The current public channel changes $B_{P,\mathrm{art}}^t(k)$, whereas the declared privacy budget determines the noise power tax $F$ and hence $B_{P,\mathrm{art}}^t(k)$. The privacy requirement no longer throttles the signal scaling directly: it enters only through the $k$-independent tax $F$, and the per-coordinate recovered privacy noise is channel invariant whenever the top-up is active.
 \end{remark}
 
 \begin{revisionblock}
@@ -970,14 +983,14 @@ The convergence theorem separates learning degradation, recovered channel noise,
  &=\lambda_{\mathrm{ret}}(1-\widehat\omega_A(k))
  +\lambda_{\mathrm{clip}}\widehat\beta_A^2(k)
  +\lambda_{\mathrm{dr}}\widehat D_{\mathrm{DR},A}(k;\gamma)\notag\\
- &\quad+\frac{\lambda_{\mathrm{ch}}}{T}\sum_{t=0}^{T-1}\frac1{b_t^2}.
+ &\quad+\frac{\lambda_{\mathrm{ch}}}{T}\sum_{t=0}^{T-1}\frac{\sigma_{\mathrm{eff},t}^2}{b_t^2}.
  \label{eqn:calibrated_score}
 \end{align}
-The normalized learning and dynamic-range statistics are frozen during the scaling search. The single operating-point problem is
+The channel term uses the effective noise~$\sigma_{\mathrm{eff},t}^2$; whenever the top-up is active it becomes the deterministic quantity $4c_{\mathrm{tx}}^2k/m^2(\epsilon)$, so the objective contains the explicit sparsity--privacy trade $k/m^2(\epsilon)$. The normalized learning and dynamic-range statistics are frozen during the scaling search. The single operating-point problem is
 \begin{align}
  \min_{k\in\mathcal K,\{b_t>0\}}\quad &\widehat{\mathcal J}_A(k,\{b_t\})\label{eqn:unified_design}\\
- \mathrm{s.t.}\quad &b_t\le B_{\epsilon,\mathrm{ex}}(k),\quad \forall t,\nonumber\\
- &b_t\le B_P^t(k),\quad \forall t.\nonumber
+ \mathrm{s.t.}\quad &\sigma_{a,t}^2=\frac{1}{2N}\left(\frac{\Delta^2(k)}{m^2(\epsilon)}-\frac{\sigma_{\mathrm{sc}}^2}{b_t^2}\right)_+,\quad \forall t,\nonumber\\
+ &\frac{b_t^2}{SM|g_i^t|^2}\big(kc_{\mathrm{tx}}^2+d\sigma_{a,t}^2\big)\le P_{\mathrm{cap}},\quad \forall i,t.\nonumber
 \end{align}
 There is no cross-round privacy constraint, so the scaling subproblem separates across communication rounds.
 
@@ -985,12 +998,12 @@ There is no cross-round privacy constraint, so the scaling subproblem separates 
 \label{prop:per_round_power}
 For fixed mechanism $A$ and sparsity $k$, under the calibrated proxy in~\eqref{eqn:calibrated_score}, the largest feasible and surrogate-optimal scaling in round $t$ is
 \begin{equation}
- b_t^\star(k)=\min\{B_{\epsilon,\mathrm{ex}}(k),B_P^t(k)\}.
+ b_t^\star(k)=\min\{B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t}),B_{P,\mathrm{art}}^t(k)\}=B_P^t(k)/\sqrt F.
  \label{eqn:bstar}
 \end{equation}
 \end{proposition}
 \begin{proof}
-With the calibrated learning and normalized dynamic-range statistics frozen, the only round-$t$ scaling-dependent term is $1/b_t^2$, which is strictly decreasing for $b_t>0$. The optimum is therefore the largest value satisfying the two per-round ceilings.
+With the calibrated learning and normalized dynamic-range statistics frozen, the only round-$t$ scaling-dependent term is $\sigma_{\mathrm{eff},t}^2/b_t^2$, which is strictly decreasing for $b_t>0$. The optimum is therefore the largest value consistent with the power constraint, namely $B_P^t(k)/\sqrt F$; the privacy constraint holds with equality by the calibration~\eqref{eqn:an_calibration} whenever the top-up is active.
 \end{proof}
 
 Substitution gives the mechanism-specific sparsity score
@@ -999,7 +1012,7 @@ Substitution gives the mechanism-specific sparsity score
  &=\lambda_{\mathrm{ret}}(1-\widehat\omega_A(k))
  +\lambda_{\mathrm{clip}}\widehat\beta_A^2(k)
  +\lambda_{\mathrm{dr}}\widehat D_{\mathrm{DR},A}(k;\gamma)\notag\\
- &\quad+\frac{\lambda_{\mathrm{ch}}}{T}\sum_{t=0}^{T-1}\frac1{(b_t^\star(k))^2},
+ &\quad+\frac{\lambda_{\mathrm{ch}}}{T}\sum_{t=0}^{T-1}\frac{\sigma_{\mathrm{eff},t}^2}{(b_t^\star(k))^2},
 \end{align}
 with $k_A^\star=\arg\min_{k\in\mathcal K}J_A(k)$. The server evaluates $B_P^t(k)$ from current public CSI and applies~\eqref{eqn:bstar} causally. No future channel trajectory or cross-round privacy allocation is required.
 
@@ -1062,13 +1075,13 @@ We compare the proposed top-$k$ method with full-dimensional DP AirComp-FL~\cite
 
 Fig.~\ref{fig:exp1} illustrates test accuracy over communication rounds. In the single fixed-seed runs, the proposed operating point reaches 81.42\%, compared with 78.56\% for rand-$k$ and 75.05\% for full upload. This ordering is consistent with the proposed balance between retained update information and post-recovery aggregation noise. Because the three methods use different sparsity ratios, however, the result does not by itself isolate a causal top-$k$ advantage; matched-$k$ and independently optimized comparisons with repeated runs are required for that claim.
 
-Fig.~\ref{fig:exp2} evaluates test accuracy for privacy budgets from $\epsilon=0.2$ to $3.0$. The proposed operating point is higher in these single-run results. \rev{Relative to full-dimensional transmission, element-wise clipping and sparse upload reduce the AirComp sensitivity from the $\mathcal{O}(\sqrt{d})$ scale to the $\mathcal{O}(\sqrt{k})$ scale.} The per-round exact ceiling $B_{\epsilon,\mathrm{ex}}(k)$ therefore permits a larger $b_t$ for smaller $k$, reducing post-recovery noise; the realized receive SNR changes with $\epsilon$ rather than remaining fixed. \rev{At matched $k$ and clipping coefficient, top-$k$ and common-support rand-$k$ share the same worst-case sparse sensitivity order.} The flattening at larger $\epsilon$ is consistent with saturation of the privacy benefit, but a DP-to-energy-limited regime transition can be identified only by verifying when $B_{\epsilon,\mathrm{ex}}(k)$ exceeds $B_P^t(k)$ at each plotted operating point.
+Fig.~\ref{fig:exp2} evaluates test accuracy for privacy budgets from $\epsilon=0.2$ to $3.0$. The proposed operating point is higher in these single-run results. \rev{Relative to full-dimensional transmission, element-wise clipping and sparse upload reduce the AirComp sensitivity from the $\mathcal{O}(\sqrt{d})$ scale to the $\mathcal{O}(\sqrt{k})$ scale.} The per-round exact ceiling $B_{\epsilon,\mathrm{ex}}(k)$ therefore permits a larger $b_t$ for smaller $k$, reducing post-recovery noise; the realized receive SNR changes with $\epsilon$ rather than remaining fixed. \rev{At matched $k$ and clipping coefficient, top-$k$ and common-support rand-$k$ share the same worst-case sparse sensitivity order.} The flattening at larger $\epsilon$ is consistent with saturation of the privacy benefit, but the operational regime transition is characterized by the closed form $\epsilon_{\mathrm{loose}}(k)$ rather than by a ceiling crossover.
 
 Fig.~\ref{fig:exp3} reports the legacy client-scalability diagnostic at round $t=100$ using a nested pool of 125 FEMNIST clients. The script measures mean coordinate concurrency, activates a heuristic stress model when this mean exceeds 35.5, adds zero-mean Gaussian distortion with standard deviation $8$ times the overload, and clamps the aggregate coordinate magnitude at $35.5C$. This construction is neither a Bussgang decomposition nor direct execution of~\eqref{eqn:dr_operator}, and it has no parameter mapping to the AGC backoff $\gamma$. The rand-$k$ supports in this script are independently sampled across clients, unlike the common-support PFELS baseline defined in Section~\ref{sec:system_model}; Fig.~\ref{fig:exp3} should therefore be read as a qualitative sparsity diagnostic rather than a PFELS or waveform-level dynamic-range validation. As $N$ increases, the observed degradation is consistent with increasing per-coordinate concurrency. Sparse transmission can reduce expected concurrency in this diagnostic, but no universal reduction in PAPR or clipping energy is claimed without measuring $\rho_A^t(k)$, $\Omega_A^t(k)$, or $E_{\mathrm{clip},A}^t$ under a common physical resource map.
 
 \section{Conclusion}
 \label{sec:conclusion}
-This paper developed a fixed-participation top-$k$ sparse OFDM-AirComp-FL framework with per-round intrinsic client-level privacy and finite receiver complex-envelope dynamic range. Sparse upload reduces replace-one sensitivity from $\mathcal O(\sqrt d)$ to $\mathcal O(\sqrt k)$ and enlarges both the per-round privacy and current-channel power scaling ceilings. The unique protocol rule is $b_t^\star(k)=\min\{B_{\epsilon,\mathrm{ex}}(k),B_P^t(k)\}$, so scaling adapts causally to public CSI without cross-round privacy-budget allocation. The convergence analysis separates learning error, recovered channel noise, and the exact radial waveform residual; no random wireless-participation variance is introduced. Top-$k$ is not assumed to lower PAPR universally or to have lower worst-case sensitivity than Rand-$k$ at matched $k$; its distinctions lie in retained information, error feedback, and support-dependent waveform structure. The privacy statement applies to each communication round individually, while complete-training composition and concrete finite-bit I/Q quantization remain separate extensions.
+This paper developed a fixed-participation top-$k$ sparse OFDM-AirComp-FL framework with per-round channel-noise-aware client-level privacy and finite receiver complex-envelope dynamic range. Sparse upload reduces replace-one sensitivity from $\mathcal O(\sqrt d)$ to $\mathcal O(\sqrt k)$ and reduces the required privacy noise level through $\Delta(k)\propto\sqrt k$. The unique protocol rule is $b_t^\star(k)=\min\{B_{\epsilon,\mathrm{art}}(k),B_{P,\mathrm{art}}^t(k)\}$ with a closed-form minimal artificial-noise calibration, so scaling adapts causally to public CSI without cross-round privacy-budget allocation, and privacy is purely intrinsic whenever the channel noise alone suffices. The convergence analysis separates learning error, recovered channel noise, and the exact radial waveform residual; no random wireless-participation variance is introduced. Top-$k$ is not assumed to lower PAPR universally or to have lower worst-case sensitivity than Rand-$k$ at matched $k$; its distinctions lie in retained information, error feedback, and support-dependent waveform structure. The privacy statement applies to each communication round individually, while complete-training composition and concrete finite-bit I/Q quantization remain separate extensions.
 % Color journal-only bibliography entries% Color journal-only bibliography entries while retaining conference entries in black.
 \makeatletter
 \@namedef{journalnew@cao2023overview}{1}

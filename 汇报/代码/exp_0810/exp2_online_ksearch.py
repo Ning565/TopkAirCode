@@ -290,6 +290,11 @@ def main() -> None:
     parser.add_argument("--p-cap-dbm", type=float, default=20.0)
     parser.add_argument("--adc-backoff-db", type=float, default=6.0, help="use inf to disable clipping")
     parser.add_argument("--c-tx", type=float, default=0.01)
+    parser.add_argument("--dp-mode", default="topup", choices=["topup", "off"],
+                        help="'off' disables DP entirely (stepwise old/new alignment runs)")
+    parser.add_argument("--p-operating-dbm", type=float, default=float("nan"),
+                        help="open-loop power-control point (dBm); NaN uses P_cap; "
+                             "-30.3 reproduces the legacy SNR15 effective noise at r=250m")
     parser.add_argument("--num-clients", type=int, default=20)
     parser.add_argument("--oversampling", type=int, default=4)
     # Learning knobs.
@@ -316,6 +321,8 @@ def main() -> None:
         adc_backoff_db=backoff,
         c_tx=args.c_tx,
         oversampling=args.oversampling,
+        dp_mode=args.dp_mode,
+        p_operating_dbm=args.p_operating_dbm,
     )
     cfg = LearnConfig(
         seed=args.seed,

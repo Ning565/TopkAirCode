@@ -13,6 +13,7 @@
 \newtheorem{theorem}{Theorem}
 \newtheorem{lemma}{Lemma}
 \newtheorem{corollary}{Corollary}
+\newtheorem{proposition}{Proposition}
 \newtheorem{remark}{Remark}
 \newtheorem{assumption}{Assumption}
 
@@ -38,7 +39,7 @@
 
 \section{Algorithm Flow and Assumptions}
 
-To facilitate the convergence analysis, we first formalize the algorithm flow, the fixed-participation OFDM-AirComp aggregation and receiver dynamic-range model, and the assumptions used in the proof. Throughout this appendix, the global objective is
+To facilitate the convergence analysis, we first formalize the algorithm flow, the fixed-participation OFDM-AirComp aggregation and receiver dynamic-range model, and the assumptions used in the proof. The aggregation is protected by a per-round hybrid mechanism: channel noise supplies part of the required differential-privacy randomness, and each client additionally injects the minimum artificial noise calibrated in closed form from public quantities whenever channel noise alone is insufficient. Throughout this appendix, the global objective is
 \begin{equation}
     f(\theta) \triangleq \frac{1}{N}\sum_{i=1}^{N} f_i(\theta),
 \end{equation}
@@ -116,19 +117,33 @@ The real-valued sparse vector $s_{A,i}^t(k)$ is mapped onto $S=\lceil d/M\rceil$
     =\frac{b_t}{g_i^t}S_{A,i,\ell}^t[m;k],
     \qquad i=1,\ldots,N,
 \end{equation}
-where $g_i^t=\sqrt{\beta_i}h_i^t$ is the public frequency-flat channel coefficient in round $t$. Conditioned on successful alignment, the frequency-domain observation is
+where $g_i^t=\sqrt{\beta_i}h_i^t$ is the public frequency-flat channel coefficient in round $t$. In addition to the update, each client draws an artificial-noise vector $a_i^t\sim\mathcal N(\mathbf 0,\sigma_{a,t}^2\mathbf I_d)$, independent across clients and rounds, real-valued, and mapped to the same $d$ grid coordinates as the model update; let $A_{i,\ell}^t[m]$ denote its grid image. Conditioned on successful alignment, the frequency-domain observation is
 \begin{equation}
     Y_{A,\ell}^t[m;k,b_t]
-    =b_t\sum_{i=1}^{N}S_{A,i,\ell}^t[m;k]+N_\ell^t[m],
+    =b_t\sum_{i=1}^{N}\big(S_{A,i,\ell}^t[m;k]+A_{i,\ell}^t[m]\big)+N_\ell^t[m],
 \end{equation}
-with $N_\ell^t[m]\sim\mathcal{CN}(0,\sigma_{\mathrm{sc}}^2)$. The real part of this noise is the Gaussian randomness used for the per-round client-level privacy guarantee.
+with $N_\ell^t[m]\sim\mathcal{CN}(0,\sigma_{\mathrm{sc}}^2)$. The Gaussian randomness used for the per-round client-level privacy guarantee is the superposition of the real part of the thermal noise and the $N$ aggregated artificial-noise components. Define the round-wise effective noise level
+\begin{equation}
+    \label{eqn:effective_noise}
+    \sigma_{\mathrm{eff},t}^2\triangleq\sigma_{\mathrm{sc}}^2+2N b_t^2\sigma_{a,t}^2 .
+\end{equation}
+The injection level is calibrated in closed form from public quantities only,
+\begin{equation}
+    \label{eqn:artificial_noise_calibration}
+    \sigma_{a,t}^2=\frac{1}{2N}\max\!\left\{0,\;
+    \frac{\Delta^2(k)}{m^2(\epsilon)}-\frac{\sigma_{\mathrm{sc}}^2}{b_t^2}\right\},
+    \qquad
+    m(\epsilon)\triangleq\sqrt{\epsilon+\ln(1/\delta)}-\sqrt{\ln(1/\delta)},
+\end{equation}
+so that no additional signaling beyond the existing broadcast of $b_t$ is required. When channel noise alone already meets the privacy requirement the injection vanishes and privacy is purely intrinsic; artificial noise is added only to top up the deficit.
 
 Let $c_{\mathrm{tx}}\triangleq\eta\tau C$. The complete-burst average transmit power of client $i$ is
 \begin{equation}
     P_{A,i}^{t}
     =\frac{1}{SM}\sum_{\ell=1}^{S}\sum_{m=0}^{M-1}|X_{A,i,\ell}^t[m]|^2
-    =\frac{b_t^2}{SM|g_i^t|^2}\|s_{A,i}^t(k)\|_2^2.
+    =\frac{b_t^2}{SM|g_i^t|^2}\Big(\|s_{A,i}^t(k)\|_2^2+\|a_i^t\|_2^2\Big),
 \end{equation}
+and its expectation equals $\frac{b_t^2}{SM|g_i^t|^2}\big(\|s_{A,i}^t(k)\|_2^2+d\sigma_{a,t}^2\big)$.
 Since $\|s_{A,i}^t(k)\|_0\le k$ and $\|s_{A,i}^t(k)\|_\infty\le c_{\mathrm{tx}}$, the public per-round power ceiling is
 \begin{equation}
     \label{eqn:power_ceiling}
@@ -138,11 +153,20 @@ Since $\|s_{A,i}^t(k)\|_0\le k$ and $\|s_{A,i}^t(k)\|_\infty\le c_{\mathrm{tx}}$
     \frac{|g_i^t|\sqrt{SM P_{\mathrm{cap}}}}
     {c_{\mathrm{tx}}\sqrt{k}}.
 \end{equation}
+Substituting the calibration~\eqref{eqn:artificial_noise_calibration} at equality and $\Delta^2(k)=4c_{\mathrm{tx}}^2k$ gives $\|s_{A,i}^t(k)\|_2^2+d\sigma_{a,t}^2\le kc_{\mathrm{tx}}^2F$ with the $k$-independent noise power tax
+\begin{equation}
+    \label{eqn:noise_power_tax}
+    F\triangleq 1+\frac{2d}{N m^2(\epsilon)} .
+\end{equation}
+\begin{remark}[\bf Expected versus Realized Noise Power]
+    \label{rem:chi_square}
+    The constraint is stated for the expected artificial-noise energy. Since $\|a_i^t\|_2^2/(d\sigma_{a,t}^2)$ is a normalized chi-square variable with $d$ degrees of freedom, its relative fluctuation is $\sqrt{2/d}$; replacing $P_{\mathrm{cap}}$ by $(1+3\sqrt{2/d})^{-1}P_{\mathrm{cap}}$ converts the statement into a high-probability per-burst constraint with negligible loss.
+\end{remark}
 For replace-one client adjacency, the sparse-query sensitivity before multiplication by $b_t$ is
 \begin{equation}
     \Delta(k)=2c_{\mathrm{tx}}\sqrt{k}.
 \end{equation}
-Define the exact sufficient per-round privacy ceiling
+Define the intrinsic per-round privacy ceiling
 \begin{equation}
     \label{eqn:per_round_privacy_ceiling}
     B_{\epsilon,\mathrm{ex}}(k)
@@ -152,14 +176,39 @@ Define the exact sufficient per-round privacy ceiling
     \sqrt{\epsilon+\ln(1/\delta)}-\sqrt{\ln(1/\delta)}
     \right).
 \end{equation}
-The protocol uses the unique per-round scaling rule
+Injecting artificial noise raises the privacy ceiling. Define the noise-augmented privacy ceiling
+\begin{equation}
+    \label{eqn:privacy_ceiling_art}
+    B_{\epsilon,\mathrm{art}}(k;\sigma_a)
+    \triangleq
+    \frac{m(\epsilon)\,\sigma_{\mathrm{sc}}}
+    {\sqrt{\big(\Delta^2(k)-2N m^2(\epsilon)\sigma_a^2\big)_+}},
+\end{equation}
+which reduces to $B_{\epsilon,\mathrm{ex}}(k)$ at $\sigma_a=0$, is increasing in $\sigma_a$, and equals $+\infty$ once $\sigma_a^2\ge\Delta^2(k)/(2Nm^2(\epsilon))$: with sufficient injected noise the privacy requirement no longer restricts the scaling. By the calibration~\eqref{eqn:artificial_noise_calibration}, $\sigma_{a,t}=0$ if and only if $b_t\le B_{\epsilon,\mathrm{ex}}(k)$, recovering the intrinsic-noise regime of prior power-control designs. Provisioning the power budget for the maximal injection level $\bar\sigma_a\triangleq\Delta(k)/(\sqrt{2N}\,m(\epsilon))$ defines the noise-taxed power ceiling
+\begin{equation}
+    \label{eqn:power_ceiling_art}
+    B_{P,\mathrm{art}}^t(k)
+    \triangleq
+    \min_{1\le i\le N}
+    \frac{|g_i^t|\sqrt{SM P_{\mathrm{cap}}}}
+    {c_{\mathrm{tx}}\sqrt{k}\,\sqrt{F}}
+    =\frac{B_P^t(k)}{\sqrt F}.
+\end{equation}
+The protocol keeps the min-form per-round scaling rule
 \begin{equation}
     \label{eqn:per_round_scaling}
     b_t=b_t^\star(k)
     \triangleq
-    \min\left\{B_{\epsilon,\mathrm{ex}}(k),B_P^t(k)\right\}.
+    \min\big\{B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t}),\,B_{P,\mathrm{art}}^t(k)\big\},
 \end{equation}
-Thus $b_t$ may vary across rounds through the current public channel state, but it does not depend on current private update norms and requires no cross-round privacy-budget allocation.
+with $\sigma_{a,t}$ given by~\eqref{eqn:artificial_noise_calibration} evaluated at $b_t=B_{P,\mathrm{art}}^t(k)$. Thus $b_t$ may vary across rounds through the current public channel state, but it does not depend on current private update norms and requires no cross-round privacy-budget allocation.
+\begin{proposition}[\bf Closed-Form Evaluation of the Min Rule]
+    \label{prop:min_closed_form}
+    In every round, $b_t^\star(k)=B_{P,\mathrm{art}}^t(k)=B_P^t(k)/\sqrt F$. In the top-up regime the calibration~\eqref{eqn:artificial_noise_calibration} holds with equality, hence $B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t})=B_{P,\mathrm{art}}^t(k)$ exactly: the injected noise raises the privacy ceiling precisely to the power ceiling and both branches of the min coincide. In the intrinsic regime $\sigma_{a,t}=0$ and $B_{\epsilon,\mathrm{art}}=B_{\epsilon,\mathrm{ex}}(k)\ge B_{P,\mathrm{art}}^t(k)$, so the rule coincides with the classical min rule with the power branch active.
+\end{proposition}
+\begin{proof}
+    The calibration holds with equality if and only if $b_t^2\Delta^2(k)=m^2(\epsilon)\big(\sigma_{\mathrm{sc}}^2+2Nb_t^2\sigma_{a,t}^2\big)$, which rearranges to $b_t=B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t})$ by~\eqref{eqn:privacy_ceiling_art}; evaluating the calibration at $b_t=B_{P,\mathrm{art}}^t(k)$ then gives both branches of~\eqref{eqn:per_round_scaling} equal to $B_{P,\mathrm{art}}^t(k)$. If the maximum in~\eqref{eqn:artificial_noise_calibration} is inactive, then $\sigma_{a,t}=0$ and $B_{P,\mathrm{art}}^t(k)\le B_{\epsilon,\mathrm{ex}}(k)$, so the power branch is selected.
+\end{proof}
 
 Let $Q=L_{\mathrm{os}}M$ and let $\mathcal Z_{\mathrm{os}}$ denote centered zero padding. The power-preserving oversampled vector is
 \begin{equation}
@@ -200,28 +249,29 @@ with absolute threshold $A_{\max}^t=\gamma A_{\mathrm{rms}}^t$ and exact residua
     =\frac{M}{Q}\sum_{\ell=1}^{S}\sum_{n=0}^{Q-1}
     \left(|y_{A,\ell}^t[n;k,b_t]|-A_{\max}^t\right)_+^2.
 \end{equation}
-After the unitary FFT, extraction of the original bins, and inverse oversampling normalization, let $\mathbf R_{\mathrm{clip},A,\mathcal D}^t$ be the concatenated frequency-domain residual. The equivalent receiver dynamic-range aggregation error and channel-noise error are
+After the unitary FFT, extraction of the original bins, and inverse oversampling normalization, let $\mathbf R_{\mathrm{clip},A,\mathcal D}^t$ be the concatenated frequency-domain residual. The equivalent receiver dynamic-range aggregation error and effective-noise error are
 \begin{equation}
     e_{\mathrm{dr},A}^t
     =\frac{\mathrm{Re}\{\mathbf R_{\mathrm{clip},A,\mathcal D}^t\}}{b_tN},
     \qquad
-    e_{\mathrm{ch}}^t
-    =\frac{\mathrm{Re}\{\mathbf N_{\mathcal D}^t\}}{b_tN},
+    e_{\mathrm{noise}}^t
+    =\frac1N\sum_{i=1}^{N}a_i^t+\frac{\mathrm{Re}\{\mathbf N_{\mathcal D}^t\}}{b_tN},
 \end{equation}
 where
 \begin{equation}
-    \mathbb E\|e_{\mathrm{ch}}^t\|_2^2
-    =\frac{d\sigma_{\mathrm{sc}}^2}{2b_t^2N^2}.
+    \mathbb E\|e_{\mathrm{noise}}^t\|_2^2
+    =\frac{d\,\sigma_{\mathrm{eff},t}^2}{2b_t^2N^2}
 \end{equation}
+by the independent Gaussian sum and~\eqref{eqn:effective_noise}.
 The physical update is therefore
 \begin{equation}
     \label{eqn:physical_update_dr}
     \theta^{t+1}
     =\theta^t+\frac1N\sum_{i=1}^{N}s_{A,i}^t(k)
-    +e_{\mathrm{ch}}^t+e_{\mathrm{dr},A}^t.
+    +e_{\mathrm{noise}}^t+e_{\mathrm{dr},A}^t.
 \end{equation}
 
-Let $\mathcal F_t$ denote the filtration generated by the physical iterate, all error memories, and all randomness before round $t$. The current public channel state and scaling are measurable before transmission. Channel noise is zero mean conditional on this enlarged public history; the radial-limiting residual is not assumed to be zero mean or independent.
+Let $\mathcal F_t$ denote the filtration generated by the physical iterate, all error memories, and all randomness before round $t$. The current public channel state and scaling are measurable before transmission. Channel noise is zero mean conditional on this enlarged public history, and the artificial noise is zero mean and independent of all signals conditional on $\mathcal F_t$ and the public $b_t$, so $e_{\mathrm{noise}}^t$ is conditionally zero mean; the radial-limiting residual is not assumed to be zero mean or independent.
 
 \subsection{Core Assumptions}
 
@@ -294,12 +344,12 @@ Let $\mathcal F_t$ denote the filtration generated by the physical iterate, all 
     \begin{equation}
         \mathbb E[E_{\mathrm{clip},A}^t(k,b_t)]<\infty.
     \end{equation}
-    The aggregation error $e_{\mathrm{dr},A}^t$ is not assumed to be zero mean and is not assumed to be independent of the channel noise or local updates.
+    The aggregation error $e_{\mathrm{dr},A}^t$ is not assumed to be zero mean and is not assumed to be independent of channel noise or local updates. The radial limiting acts on the received waveform including the artificial noise; the pathwise residual energy~\eqref{eqn:eclip_def} is unaffected by this modeling choice.
 \end{assumption}
 
 \begin{assumption}[\bf Successful Full-Client Alignment and Public Scaling]
     \label{assum:public_scaling}
-    Every counted logical round satisfies $|h_i^t|\ge h_{\mathrm{cut}}$ for all clients and is completed by all $N$ clients under exact pre-equalized alignment. The public scaling is given by~\eqref{eqn:per_round_scaling}, is independent of the realized current private updates, and satisfies
+    Every counted logical round satisfies $|h_i^t|\ge h_{\mathrm{cut}}$ for all clients and is completed by all $N$ clients under exact pre-equalized alignment. The public scaling is given by~\eqref{eqn:per_round_scaling} together with the public artificial-noise calibration~\eqref{eqn:artificial_noise_calibration}, is independent of the realized current private updates, and satisfies
     \begin{equation}
         \mathbb E\left[\frac{1}{b_t^2}\right]<\infty.
     \end{equation}
@@ -307,10 +357,10 @@ Let $\mathcal F_t$ denote the filtration generated by the physical iterate, all 
 
 \begin{theorem}[\bf Per-Round Client-Level Privacy]
     \label{thm:per_round_privacy}
-    Consider replace-one client adjacency. Conditional on the same preceding public transcript, current public channel state, public $b_t$, and data-independent randomness of unchanged clients, the noisy AirComp observation in round $t$ satisfies client-level $(\epsilon,\delta)$-DP whenever $0<b_t\le B_{\epsilon,\mathrm{ex}}(k)$. In particular, the protocol scaling~\eqref{eqn:per_round_scaling} satisfies this condition in every round.
+    Consider replace-one client adjacency. Conditional on the same preceding public transcript, current public channel state, public $b_t$, and the data-dependent signals of unchanged clients, with the thermal noise and all $N$ artificial-noise vectors acting as mechanism randomness, the noisy AirComp observation in round $t$ satisfies client-level $(\epsilon,\delta)$-DP under the protocol scaling~\eqref{eqn:per_round_scaling} and calibration~\eqref{eqn:artificial_noise_calibration}, in every round and in both regimes.
 \end{theorem}
 \begin{proof}
-    The pre-noise query has sensitivity at most $b_t\Delta(k)$. The real part of $\mathcal{CN}(0,\sigma_{\mathrm{sc}}^2)$ noise has variance $\sigma_{\mathrm{sc}}^2/2$. The order-$\alpha$ Gaussian RDP cost is therefore at most $\alpha b_t^2\Delta^2(k)/\sigma_{\mathrm{sc}}^2$. Applying the standard RDP-to-DP conversion and optimizing over $\alpha>1$ yields~\eqref{eqn:per_round_privacy_ceiling}. AGC, radial limiting, inverse-gain restoration, FFT recovery, division by $N$, and model updating are post-processing of the noisy observation.
+    The pre-noise query has sensitivity at most $b_t\Delta(k)$. The real-part Gaussian randomness of the observation has variance $\sigma_{\mathrm{sc}}^2/2+Nb_t^2\sigma_{a,t}^2=\sigma_{\mathrm{eff},t}^2/2$: the artificial noise of every client is data independent, identically distributed under adjacent executions, and superposed with the thermal noise at the receiver, so it is valid mechanism randomness. The order-$\alpha$ Gaussian RDP cost is therefore at most $\alpha b_t^2\Delta^2(k)/\sigma_{\mathrm{eff},t}^2$. The calibration~\eqref{eqn:artificial_noise_calibration} enforces $b_t^2\Delta^2(k)\le m^2(\epsilon)\,\sigma_{\mathrm{eff},t}^2$; applying the standard RDP-to-DP conversion and optimizing over $\alpha>1$ yields $(\epsilon,\delta)$-DP. AGC, radial limiting, inverse-gain restoration, FFT recovery, division by $N$, and model updating are post-processing of the noisy observation.
 \end{proof}
 
 The theorem is a per-round statement. The paper does not claim that the complete $T$-round transcript satisfies the same $(\epsilon,\delta)$ without an additional composition accountant.
@@ -573,6 +623,21 @@ The theorem is a per-round statement. The paper does not claim that the complete
     \end{equation}
 \end{remark}
 
+\begin{lemma}[\bf Effective-Noise Aggregation Error]
+    \label{lemma:noise_error}
+    Under Assumption~\ref{assum:public_scaling} and the calibration~\eqref{eqn:artificial_noise_calibration}, the aggregation noise error $e_{\mathrm{noise}}^t$ is conditionally zero mean given $\mathcal F_t$ and satisfies
+    \begin{equation}
+        \mathbb E_t\|e_{\mathrm{noise}}^t\|_2^2
+        =\frac{d\,\sigma_{\mathrm{eff},t}^2}{2 b_t^2 N^2},
+        \qquad
+        \frac{\sigma_{\mathrm{eff},t}^2}{b_t^2}
+        =\max\left\{\frac{\Delta^2(k)}{m^2(\epsilon)},\;\frac{\sigma_{\mathrm{sc}}^2}{b_t^2}\right\}.
+    \end{equation}
+\end{lemma}
+\begin{proof}
+    Zero mean and the variance follow from the independent Gaussian sum $\frac1N\sum_{i=1}^Na_i^t+\mathrm{Re}\{\mathbf N_{\mathcal D}^t\}/(b_tN)$ with per-coordinate variance $\sigma_{a,t}^2/N+\sigma_{\mathrm{sc}}^2/(2b_t^2N^2)=\sigma_{\mathrm{eff},t}^2/(2b_t^2N^2)$ by~\eqref{eqn:effective_noise}. The second identity is~\eqref{eqn:artificial_noise_calibration} evaluated in the two regimes.
+\end{proof}
+
 \section{Proof of Main Convergence Bound}
 
 \begin{theorem}[\bf Dynamic-Range-Aware Convergence Bound]
@@ -636,8 +701,8 @@ The theorem is a per-round statement. The paper does not claim that the complete
         &\le
         \Phi_A\big(k;\bar{\omega}_A,\beta_A\big)
         +
-        \frac{8\Gamma_A(k)L\sigma_{\mathrm{sc}}^2d}{T\eta\tau N^2}
-        \sum_{t=0}^{T-1}\frac1{b_t^2}
+        \frac{8\Gamma_A(k)Ld}{T\eta\tau N^2}
+        \sum_{t=0}^{T-1}\frac{\sigma_{\mathrm{eff},t}^2}{b_t^2}
         \notag\\
         &\quad+
         \frac{16\Gamma_A(k)C_{\mathrm{dr}}}{T\eta\tau N^2}
@@ -660,7 +725,7 @@ The virtual sequence is defined by
 with $\bar e^{-1}=\mathbf{0}$. Equivalently, $\tilde\theta^{t+1}=\theta^{t+1}+\bar e^t$. Using~\eqref{eqn:transmit_signal} and the physical update~\eqref{eqn:physical_update_dr}, the error memories cancel out:
 \begin{equation}
     \tilde\theta^{t+1}
-    =\tilde\theta^t+a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{dr},A}^t,
+    =\tilde\theta^t+a_A^t+e_{\mathrm{noise}}^t+e_{\mathrm{dr},A}^t,
 \end{equation}
 where
 \begin{equation}
@@ -677,12 +742,12 @@ By $L$-smoothness,
     \mathbb{E}_t[f(\tilde\theta^{t+1})-f(\tilde\theta^t)]
     &\le
     \mathbb{E}_t\left\langle\nabla f(\tilde\theta^t),
-    a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{dr},A}^t\right\rangle
+    a_A^t+e_{\mathrm{noise}}^t+e_{\mathrm{dr},A}^t\right\rangle
     \notag\\
     &\quad+
-    \frac{L}{2}\mathbb{E}_t\|a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{dr},A}^t\|_2^2.
+    \frac{L}{2}\mathbb{E}_t\|a_A^t+e_{\mathrm{noise}}^t+e_{\mathrm{dr},A}^t\|_2^2.
 \end{align}
-Since $e_{\mathrm{ch}}^t$ is conditionally zero-mean, $\mathbb{E}_t\langle\nabla f(\tilde\theta^t),e_{\mathrm{ch}}^t\rangle=0$. No zero-mean or independence property is assumed for $e_{\mathrm{dr},A}^t$. We decompose
+Since $e_{\mathrm{noise}}^t$ is conditionally zero-mean, $\mathbb{E}_t\langle\nabla f(\tilde\theta^t),e_{\mathrm{noise}}^t\rangle=0$. No zero-mean or independence property is assumed for $e_{\mathrm{dr},A}^t$. We decompose
 \begin{equation}
     \mathbb{E}_t[f(\tilde\theta^{t+1})-f(\tilde\theta^t)]
     \le T_{1,A}+T_{\mathrm{dr,lin},A}+T_{2,A},
@@ -691,7 +756,7 @@ where
 \begin{align}
     T_{1,A}&\triangleq\mathbb{E}_t\langle\nabla f(\tilde\theta^t),a_A^t\rangle,\\
     T_{\mathrm{dr,lin},A}&\triangleq\mathbb{E}_t\langle\nabla f(\tilde\theta^t),e_{\mathrm{dr},A}^t\rangle,\\
-    T_{2,A}&\triangleq\frac{L}{2}\mathbb{E}_t\|a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{dr},A}^t\|_2^2.
+    T_{2,A}&\triangleq\frac{L}{2}\mathbb{E}_t\|a_A^t+e_{\mathrm{noise}}^t+e_{\mathrm{dr},A}^t\|_2^2.
 \end{align}
 
 \subsection{Bounding $T_{1,A}$, $T_{\mathrm{dr,lin},A}$, and $T_{2,A}$}
@@ -748,23 +813,23 @@ For the linear dynamic-range term, Young's inequality and Lemma~\ref{lemma:dr_er
 
 \subsubsection{Variance and Noise $T_{2,A}$}
 
-Because $e_{\mathrm{dr},A}^t$ may be correlated with both the update and the channel noise, we separate it using Young's inequality. With a symmetric choice of the Young parameter,
+Because $e_{\mathrm{dr},A}^t$ may be correlated with both the update and channel noise, we separate it using Young's inequality. With a symmetric choice of the Young parameter,
 \begin{align}
-    \mathbb{E}_t\|a_A^t+e_{\mathrm{ch}}^t+e_{\mathrm{dr},A}^t\|_2^2
+    \mathbb{E}_t\|a_A^t+e_{\mathrm{noise}}^t+e_{\mathrm{dr},A}^t\|_2^2
     &\le
-    2\mathbb{E}_t\|a_A^t+e_{\mathrm{ch}}^t\|_2^2
+    2\mathbb{E}_t\|a_A^t+e_{\mathrm{noise}}^t\|_2^2
     +2\mathbb{E}_t\|e_{\mathrm{dr},A}^t\|_2^2
     \notag\\
     &=2\mathbb{E}_t\|a_A^t\|_2^2
-    +2\mathbb{E}_t\|e_{\mathrm{ch}}^t\|_2^2
+    +2\mathbb{E}_t\|e_{\mathrm{noise}}^t\|_2^2
     +2\mathbb{E}_t\|e_{\mathrm{dr},A}^t\|_2^2,
 \end{align}
-where the cross term between $a_A^t$ and $e_{\mathrm{ch}}^t$ vanishes by conditional zero-mean channel noise. Thus
+where the cross term between $a_A^t$ and $e_{\mathrm{noise}}^t$ vanishes by the conditional zero mean of the effective noise. Thus
 \begin{equation}
     T_{2,A}
     \le
     L\mathbb{E}_t\|a_A^t\|_2^2
-    +L\mathbb{E}_t\|e_{\mathrm{ch}}^t\|_2^2
+    +L\mathbb{E}_t\|e_{\mathrm{noise}}^t\|_2^2
     +L\mathbb{E}_t\|e_{\mathrm{dr},A}^t\|_2^2.
 \end{equation}
 Using Jensen's inequality and Assumption~\ref{assum:clipping},
@@ -788,7 +853,7 @@ The accumulated local update satisfies
     +2\kappa^2+\zeta^2
     \right).
 \end{align}
-Substituting this estimate, the channel-noise variance, and Lemma~\ref{lemma:dr_error}, we obtain
+Substituting this estimate, Lemma~\ref{lemma:noise_error}, and Lemma~\ref{lemma:dr_error}, we obtain
 \begin{align}
     \label{eqn:t2_bound_new}
     T_{2,A}
@@ -799,7 +864,7 @@ Substituting this estimate, the channel-noise variance, and Lemma~\ref{lemma:dr_
     &\quad+
     2L\eta^2\tau^2(2\kappa^2+\zeta^2)
     +2L\eta^2\tau^2\beta_A^2(k)
-    +\frac{Ld\sigma_{\mathrm{sc}}^2}{2b_t^2N^2}
+    +\frac{Ld\,\sigma_{\mathrm{eff},t}^2}{2b_t^2N^2}
     +\frac{L}{b_t^2N^2}\mathbb{E}_t[E_{\mathrm{clip},A}^t(k,b_t)].
 \end{align}
 
@@ -848,7 +913,7 @@ Combining~\eqref{eqn:t1_bound_new},~\eqref{eqn:t_dr_lin_bound}, and~\eqref{eqn:t
     +\mathcal{E}_A(k)
     \notag\\
     &\quad+
-    \frac{Ld\sigma_{\mathrm{sc}}^2}{2b_t^2N^2}
+    \frac{Ld\,\sigma_{\mathrm{eff},t}^2}{2b_t^2N^2}
     +C_{\mathrm{dr}}\frac{\mathbb{E}_t[E_{\mathrm{clip},A}^t(k,b_t)]}{b_t^2N^2},
 \end{align}
 where
@@ -890,7 +955,7 @@ Under the learning-rate condition~\eqref{eqn:lr_condition_new}, one has $C_{\nab
     &\quad+
     \eta^2\tau^2L\Psi
     +\mathcal{E}_A(k)
-    +\frac{Ld\sigma_{\mathrm{sc}}^2}{2b_t^2N^2}
+    +\frac{Ld\,\sigma_{\mathrm{eff},t}^2}{2b_t^2N^2}
     \notag\\
     &\quad+
     C_{\mathrm{dr}}\frac{\mathbb{E}_t[E_{\mathrm{clip},A}^t(k,b_t)]}{b_t^2N^2}.
@@ -915,7 +980,7 @@ where
     +\frac{8\mathcal{E}_A(k)}{\eta\tau}
     \notag\\
     &\quad+
-    \frac{4L\sigma_{\mathrm{sc}}^2d}{T\eta\tau N^2}\sum_{t=0}^{T-1}\frac1{b_t^2}
+    \frac{4Ld}{T\eta\tau N^2}\sum_{t=0}^{T-1}\frac{\sigma_{\mathrm{eff},t}^2}{b_t^2}
     +
     \frac{8C_{\mathrm{dr}}}{T\eta\tau N^2}
     \sum_{t=0}^{T-1}
@@ -1042,8 +1107,8 @@ Substituting the bound on the virtual sequence yields
     \label{eqn:final_dr_convergence_bound}
     \frac1T\sum_{t=0}^{T-1}\mathbb{E}\|\nabla f(\theta^t)\|_2^2
     &\le
-    \frac{8\Gamma_A(k)L\sigma_{\mathrm{sc}}^2d}{T\eta\tau N^2}
-    \sum_{t=0}^{T-1}\frac1{b_t^2}
+    \frac{8\Gamma_A(k)Ld}{T\eta\tau N^2}
+    \sum_{t=0}^{T-1}\frac{\sigma_{\mathrm{eff},t}^2}{b_t^2}
     \notag\\
     &\quad+
     \frac{16\Gamma_A(k)C_{\mathrm{dr}}}{T\eta\tau N^2}
@@ -1055,7 +1120,7 @@ where $\Phi_A\big(k;\bar{\omega}_A,\beta_A\big)$ is defined in~\eqref{eqn:phi_de
 
 \begin{corollary}[\bf Joint Utility and Per-Round Privacy]
     \label{cor:joint_utility_privacy}
-    Under Theorem~\ref{thm:main_convergence}, use $b_t=b_t^\star(k)$ from~\eqref{eqn:per_round_scaling}. Then the physical iterates satisfy the convergence bound, and every round individually satisfies replace-one client-level $(\epsilon,\delta)$-DP. No cross-round privacy-budget allocation is required.
+    Under Theorem~\ref{thm:main_convergence}, use the scaling and calibration~\eqref{eqn:per_round_scaling},~\eqref{eqn:artificial_noise_calibration}. Then the physical iterates satisfy the convergence bound, and every round individually satisfies replace-one client-level $(\epsilon,\delta)$-DP. No cross-round privacy-budget allocation is required.
 \end{corollary}
 \begin{proof}
     Convergence follows from Theorem~\ref{thm:main_convergence} and Assumption~\ref{assum:public_scaling}. Per-round privacy follows from Theorem~\ref{thm:per_round_privacy}.
@@ -1063,18 +1128,23 @@ where $\Phi_A\big(k;\bar{\omega}_A,\beta_A\big)$ is defined in~\eqref{eqn:phi_de
 
 \subsection{Interpretation and Dynamic-Range-Surrogate Interface}
 
-The final convergence bound has three groups. The learning-side term collects local drift, stochastic-gradient variance, heterogeneity, error-feedback memory, and pre-transmission clipping bias. The recovered channel-noise term is proportional to
+The final convergence bound has three groups. The learning-side term collects local drift, stochastic-gradient variance, heterogeneity, error-feedback memory, and pre-transmission clipping bias. The recovered effective-noise term is proportional to
 \begin{equation}
-    \frac1T\sum_{t=0}^{T-1}\frac{1}{b_t^2N^2},
+    \frac1T\sum_{t=0}^{T-1}\frac{\sigma_{\mathrm{eff},t}^2}{b_t^2N^2},
 \end{equation}
 and the receiver dynamic-range term is proportional to
 \begin{equation}
     \frac1T\sum_{t=0}^{T-1}
     \frac{\mathbb E[E_{\mathrm{clip},A}^t(k,b_t)]}{b_t^2N^2}.
 \end{equation}
-There is no client-participation sampling term because every logical round aggregates all $N$ clients. Path loss and fading affect convergence only through the public per-round ceiling $B_P^t(k)$, the resulting $b_t^\star(k)$, and the realized receiver waveform.
+There is no client-participation sampling term because every logical round aggregates all $N$ clients. In the active top-up regime, path loss does not enter the noise term: it affects convergence only through the current-round power ceiling, the resulting $b_t^\star(k)$, and the realized waveform.
 
-The per-round privacy ceiling and power ceiling both scale as $1/\sqrt{k}$ under the fixed coordinate-clipping rule. Hence sparse transmission can increase the feasible $b_t^\star(k)$ relative to full transmission and reduce recovered noise. At equal $k$, Top-$k$ and Rand-$k$ have the same worst-case replace-one sensitivity ceiling; their distinction is represented by the certified retention coefficient, clipping bias, and support-overlap-dependent waveform residual.
+\begin{remark}[\bf Channel-Invariant Privacy Noise]
+    \label{rem:channel_invariant}
+    Whenever the top-up is active, Lemma~\ref{lemma:noise_error} gives $\sigma_{\mathrm{eff},t}^2/b_t^2=\Delta^2(k)/m^2(\epsilon)$, so the recovered-noise term equals the deterministic quantity $8\Gamma_A(k)Ld\,\Delta^2(k)/\big(\eta\tau N^2 m^2(\epsilon)\big)$: path loss and fading drop out of the privacy-noise term entirely, and the sparsity--privacy coupling $k/m^2(\epsilon)$ enters the bound explicitly. The per-coordinate recovered noise level is $\sigma_{\mathrm{dp}}=\sqrt2\,c_{\mathrm{tx}}\sqrt k/(N m(\epsilon))$; it falls below the coordinate clipping threshold $c_{\mathrm{tx}}$ exactly when $\epsilon\ge\epsilon_{\mathrm{loose}}(k)=(\sqrt{2k}/N+\sqrt{\ln(1/\delta)})^2-\ln(1/\delta)$. In the intrinsic regime the term reduces to the familiar random quantity $\sigma_{\mathrm{sc}}^2/b_t^2$.
+\end{remark}
+
+With the noise-augmented ceilings, the noise-taxed power ceiling still scales as $1/\sqrt{k}$ under the fixed coordinate-clipping rule, while the noise power tax $F$ is $k$-independent. Sparse transmission therefore raises the feasible $b_t^\star(k)$ relative to full transmission and, through $\Delta(k)\propto\sqrt k$, directly reduces the privacy noise level $\sigma_{\mathrm{dp}}=\sqrt2\,c_{\mathrm{tx}}\sqrt k/(Nm(\epsilon))$: the sparsity--privacy coupling enters the recovered-noise term explicitly. At equal $k$, Top-$k$ and Rand-$k$ have the same worst-case replace-one sensitivity ceiling; their distinction is represented by the certified retention coefficient, clipping bias, and support-overlap-dependent waveform residual.
 
 For calibrated operating-point selection, the exact radial term may be summarized by
 \begin{equation}
@@ -1085,8 +1155,9 @@ For calibrated operating-point selection, the exact radial term may be summarize
 \end{equation}
 where $\bar y_{A,\ell}^t=a_ty_{A,\ell}^t$ is the RMS-normalized noisy waveform. This is a design surrogate, not a replacement for the exact theorem term. With frozen normalized dynamic-range statistics, the per-round surrogate is decreasing in $b_t$ through the recovered-noise term, so the largest feasible value is precisely
 \begin{equation}
-    b_t^\star(k)=\min\{B_{\epsilon,\mathrm{ex}}(k),B_P^t(k)\}.
+    b_t^\star(k)=\min\{B_{\epsilon,\mathrm{art}}(k;\sigma_{a,t}),B_{P,\mathrm{art}}^t(k)\},
 \end{equation}
+which evaluates to $B_P^t(k)/\sqrt F$ by Proposition~\ref{prop:min_closed_form}.
 The exact nonlinear waveform problem is not claimed to be globally optimized by this closed form.
 
 \end{document}
