@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """Experiment 1 (new scenario, 2026-08-10): OFFLINE optimal-compression search.
 
-Idea (paper core, convergence_analysis.tex Theorem A.1)
--------------------------------------------------------
+Idea (latest v8.tex joint-design interface + convergence appendix)
+------------------------------------------------------------------
 The dynamic-range-aware convergence bound decomposes into three groups:
 
   J_A(k) =  Phi_A(k)                                  # learning side
@@ -12,7 +12,8 @@ The dynamic-range-aware convergence bound decomposes into three groups:
           + (16*Gamma_A(k)*C_dr)/(eta*tau*N^2) * avg_t E_clip^t(k,b_t)/b_t^2
                                                        # receiver dynamic range
 
-with  mu_A(k)   = 2(1-w)(2-w)/w^2,  w = certified retention  bar_omega_A(k),
+with  mu_A(k)   = 2(1-w)(2-w)/w^2, where the theorem requires certified
+                   retention bar_omega_A(k),
       Gamma_A(k)= 2 + 16 L^2 mu_A(k) eta^2 tau^2 G^2,
       C_dr      = 4/(eta*tau) + L,
       Phi_A(k)  = 16*Gamma*Df/(T*eta*tau) + 16*Gamma*E_cal(k)/(eta*tau)
@@ -21,12 +22,20 @@ with  mu_A(k)   = 2(1-w)(2-w)/w^2,  w = certified retention  bar_omega_A(k),
       R(k)      = 8 L^2 mu eta^2 tau^2 (2 kappa^2 + zeta^2),
       Psi, Lambda as in the theorem.
 
-This script CALIBRATES every plug-in quantity from real client updates under
+The strict theorem requires a trajectory-wise certified retention lower
+envelope; an empirical q10 is not such a certificate.  Accordingly, this
+script reports the full theorem plug-in expression only as a diagnostic and
+selects the official offline k* with the calibrated joint-design score from
+v8.tex.  The artificial-noise top-up required by experiment 0810 extends the
+effective Gaussian-noise variance but does not alter the learning, memory, or
+dynamic-range residual interfaces.
+
+This script calibrates plug-in quantities from real client updates under
 the new physical scenario (fixed participation, per-round b_t^*(k), physical
 sigma_sc, oversampled waveform + ideal RMS-AGC + radial clipping):
 
-  bar_omega_A(k) : low quantile (default q10) of per-(client,round) retained
-                   energy -> certified lower envelope (Assumption A.6).
+  omega_low_A(k) : low empirical quantile (default q10) used only in the
+                   theorem plug-in diagnostic, never called a certificate.
   beta_A^2(k)    : median of ||xi||^2/(eta^2 tau^2), xi = pre-transmission
                    element-wise clipping bias of the sparsified update.
   L              : secant estimate along the (ideally advanced) trajectory,
@@ -192,9 +201,10 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
     acc: Dict[Tuple[str, float], Dict[str, list]] = {
         br: {
             "omega": [], "beta2": [], "inv_b2": [], "noise_over_b2": [], "eclip_over_b2": [],
-            "rho_clip": [], "d_clip": [], "papr_p99_db": [], "psr_round_db": [],
+            "rho_clip": [], "d_clip": [], "papr_p99_db": [], "papr_p999_db": [], "psr_round_db": [],
             "nmse_clip": [], "nmse_total": [], "silent_ratio": [],
             "b_star": [], "sigma_a": [], "sigma_dp": [], "loose": [], "papr_samples": [],
+            "dp_ratio": [], "power_util": [],
         }
         for br in branches
     }
@@ -258,6 +268,7 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
             a["rho_clip"].append(comm["rho_clip"])
             a["d_clip"].append(comm["d_clip"])
             a["papr_p99_db"].append(comm["papr_p99_db"])
+            a["papr_p999_db"].append(comm["papr_p999_db"])
             a["psr_round_db"].append(comm["psr_round_db"])
             a["nmse_clip"].append(comm["nmse_clip"])
             a["nmse_total"].append(comm["nmse_total"])
@@ -266,6 +277,8 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
             a["sigma_a"].append(lim["sigma_a_client"])
             a["sigma_dp"].append(lim["sigma_dp"])
             a["loose"].append(1.0 if lim["regime"] == "loose" else 0.0)
+            a["dp_ratio"].append(lim["dp_lhs_over_rhs"])
+            a["power_util"].append(lim["expected_power_utilization"])
             a["papr_samples"].append(comm["papr_db_samples"])
 
         if args.advance_model:
@@ -328,6 +341,7 @@ def build_rows(args, calib: Dict[str, Any]) -> List[Dict[str, Any]]:
             "k": k,
             "d": d,
             "bar_omega": omega,
+            "omega_hat": float(np.mean(a["omega"])),
             "beta2": beta2,
             "mean_inv_b2": mean_inv_b2,
             "mean_noise_over_b2": mean_noise_over_b2,
@@ -337,9 +351,12 @@ def build_rows(args, calib: Dict[str, Any]) -> List[Dict[str, Any]]:
             "sigma_dp_mean": float(np.mean(a["sigma_dp"])),
             "sigma_dp_over_ctx": float(np.mean(a["sigma_dp"])) / consts["c_tx"],
             "loose_frac": float(np.mean(a["loose"])),
+            "dp_lhs_over_rhs_max": float(np.max(a["dp_ratio"])),
+            "expected_power_utilization_max": float(np.max(a["power_util"])),
             "rho_clip": float(np.mean(a["rho_clip"])),
             "d_clip": float(np.mean(a["d_clip"])),
             "papr_p99_db": float(np.nanmean(a["papr_p99_db"])),
+            "papr_p999_db": float(np.nanmean(a["papr_p999_db"])),
             "psr_round_db": float(np.nanmean(a["psr_round_db"])),
             "nmse_clip": float(np.mean(a["nmse_clip"])),
             "nmse_total": float(np.mean(a["nmse_total"])),
@@ -349,18 +366,42 @@ def build_rows(args, calib: Dict[str, Any]) -> List[Dict[str, Any]]:
     return rows
 
 
-def add_normalized_objective(rows: List[Dict[str, Any]], lam_ch: float, lam_dr: float) -> None:
-    """Engineering view: per-method min-max normalized components + weights."""
+def add_calibrated_objective(
+    rows: List[Dict[str, Any]], lam_ret: float, lam_clip: float, lam_ch: float, lam_dr: float
+) -> None:
+    """Normalized implementation of the calibrated score in latest v8.tex.
+
+    The four interfaces are empirical retained-energy loss, pre-transmission
+    clipping bias, effective Gaussian aggregation noise (thermal + artificial),
+    and RMS-normalized radial residual.  Normalization is performed within a
+    mechanism because the goal is to select k for each mechanism, not to turn
+    unlike physical units into a cross-mechanism theorem.
+    """
     for method in sorted({r["method"] for r in rows}):
         sub = [r for r in rows if r["method"] == method]
-        for key in ("learning_term", "channel_term", "dr_term"):
-            vals = np.log1p(np.asarray([r[key] for r in sub], dtype=float))
+        for r in sub:
+            r["retention_loss"] = 1.0 - r["omega_hat"]
+            r["clip_bias_stat"] = r["beta2"]
+            r["channel_stat"] = r["mean_noise_over_b2"]
+            r["dr_stat"] = r["d_clip"]
+        for key in ("retention_loss", "clip_bias_stat", "channel_stat", "dr_stat"):
+            raw = np.asarray([r[key] for r in sub], dtype=float)
+            vals = raw if key == "retention_loss" else np.log1p(raw)
             lo, hi = float(vals.min()), float(vals.max())
             for r, v in zip(sub, vals):
                 r[f"{key}_norm"] = 0.0 if hi - lo < 1e-12 else float((v - lo) / (hi - lo))
         for r in sub:
-            r["J_norm"] = r["learning_term_norm"] + lam_ch * r["channel_term_norm"] + lam_dr * r["dr_term_norm"]
-            r["J_norm_unaware"] = r["learning_term_norm"] + lam_ch * r["channel_term_norm"]
+            r["J_calibrated"] = (
+                lam_ret * r["retention_loss_norm"]
+                + lam_clip * r["clip_bias_stat_norm"]
+                + lam_ch * r["channel_stat_norm"]
+                + lam_dr * r["dr_stat_norm"]
+            )
+            r["J_calibrated_dr_unaware"] = (
+                lam_ret * r["retention_loss_norm"]
+                + lam_clip * r["clip_bias_stat_norm"]
+                + lam_ch * r["channel_stat_norm"]
+            )
 
 
 def select_best(rows: List[Dict[str, Any]], key: str) -> Dict[str, Dict[str, Any]]:
@@ -417,11 +458,12 @@ def plot_bound(rows, best, out_dir: Path) -> None:
         ax.plot(x, [r["learning_term"] for r in sub], marker="o", label="Learning $\\Phi_A(k)$")
         ax.plot(x, [r["channel_term"] for r in sub], marker="s", label="Channel noise")
         ax.plot(x, [r["dr_term"] for r in sub], marker="^", label="Dynamic range")
-        ax.plot(x, [r["J_bound"] for r in sub], marker="D", linewidth=2.4, color="black", label="Total bound")
+        ax.plot(x, [r["J_bound"] for r in sub], marker="D", linewidth=2.4, color="black", label="Plug-in diagnostic")
         ax.axvline(best[method]["ratio"], color="red", linestyle="--", linewidth=1.2)
+        ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel("Compression ratio k/d")
-        ax.set_title(f"{method.upper()} bound-direct objective")
+        ax.set_title(f"{method.upper()} theorem-expression diagnostic")
         ax.grid(True, linestyle="--", alpha=0.4)
     axes[0][0].set_ylabel("Bound term value (log)")
     axes[0][-1].legend(loc="best", fontsize=9)
@@ -436,13 +478,15 @@ def plot_normalized(rows, best_norm, out_dir: Path) -> None:
     for ax, method in zip(axes[0], methods):
         sub = sorted([r for r in rows if r["method"] == method], key=lambda r: r["ratio"])
         x = [r["ratio"] for r in sub]
-        ax.plot(x, [r["learning_term_norm"] for r in sub], marker="o", label="Learning")
-        ax.plot(x, [r["channel_term_norm"] for r in sub], marker="s", label="Channel noise")
-        ax.plot(x, [r["dr_term_norm"] for r in sub], marker="^", label="Dynamic range")
-        ax.plot(x, [r["J_norm"] for r in sub], marker="D", linewidth=2.4, color="black", label="Total objective")
+        ax.plot(x, [r["retention_loss_norm"] for r in sub], marker="o", label="Retention loss")
+        ax.plot(x, [r["clip_bias_stat_norm"] for r in sub], marker="v", label="Clipping bias")
+        ax.plot(x, [r["channel_stat_norm"] for r in sub], marker="s", label="Effective Gaussian noise")
+        ax.plot(x, [r["dr_stat_norm"] for r in sub], marker="^", label="Dynamic range")
+        ax.plot(x, [r["J_calibrated"] for r in sub], marker="D", linewidth=2.4, color="black", label="Calibrated score")
         ax.axvline(best_norm[method]["ratio"], color="red", linestyle="--", linewidth=1.2)
+        ax.set_xscale("log")
         ax.set_xlabel("Compression ratio k/d")
-        ax.set_title(f"{method.upper()} normalized objective")
+        ax.set_title(f"{method.upper()} calibrated joint-design score")
         ax.grid(True, linestyle="--", alpha=0.4)
     axes[0][0].set_ylabel("Normalized value")
     axes[0][-1].legend(loc="best", fontsize=9)
@@ -489,7 +533,7 @@ def plot_papr_ccdf(calib, best, out_dir: Path) -> None:
         xs = np.sort(samples)
         ccdf = 1.0 - np.arange(1, xs.size + 1) / xs.size
         ax.semilogy(xs, np.maximum(ccdf, 1.0 / xs.size), linewidth=2.0,
-                    label=f"{method.upper()} k/d={ratio:.2f}")
+                    label=f"{method.upper()} k/d={ratio:.5f}")
     ax.set_xlabel("PAPR threshold $\\xi$ (dB)")
     ax.set_ylabel("CCDF  Pr{PAPR > $\\xi$}")
     ax.set_title("Structure-line (noiseless) PAPR CCDF at selected k*")
@@ -505,7 +549,7 @@ def plot_papr_ccdf(calib, best, out_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_norm) -> None:
+def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_calibrated) -> None:
     csv_rows = [{k: v for k, v in r.items()} for r in rows]
     with (out_dir / "objective_terms.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(csv_rows[0].keys()))
@@ -518,18 +562,18 @@ def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_norm) -> No
         "S_symbols": calib["S"],
         "d": calib["d"],
         "best_bound": {k: {kk: vv for kk, vv in v.items()} for k, v in best_bound.items()},
-        "best_normalized": {k: {kk: vv for kk, vv in v.items()} for k, v in best_norm.items()},
+        "best_calibrated": {k: {kk: vv for kk, vv in v.items()} for k, v in best_calibrated.items()},
+        "best_normalized": {k: {kk: vv for kk, vv in v.items()} for k, v in best_calibrated.items()},
         "interior_check_bound": interior_check(rows, best_bound, "J_bound"),
-        "interior_check_norm": interior_check(rows, best_norm, "J_norm"),
+        "interior_check_calibrated": interior_check(rows, best_calibrated, "J_calibrated"),
         "trend_check": trend_check(rows),
     }
     (out_dir / "summary.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     with (out_dir / "summary.md").open("w", encoding="utf-8") as f:
         f.write("# 实验一（新场景 0810）：离线最优压缩率搜索\n\n")
-        f.write("目标函数 = 收敛界三项分解（学习项 + 信道噪声项 + 动态范围项），"
-                "常数由真实 client update 分位数校准；物理层为固定参与 + 逐轮 "
-                "b_t*(k) + 理想 RMS-AGC + 径向限幅。\n\n")
+        f.write("统计量由真实 client update 校准；正式离线 k* 使用最新 v8.tex 联合设计式的"
+                "校准代理分数。人工噪声补足只扩展有效高斯噪声项。\n\n")
         c = calib["consts"]
         f.write("## 校准常数\n\n")
         f.write(f"- L={c['L']:.4g}, G^2={c['G2']:.4g}, kappa^2={c['kappa2']:.4g}, "
@@ -539,22 +583,25 @@ def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_norm) -> No
         f.write(f"- epsilon={args.epsilon}, delta={args.delta}, P_cap={args.p_cap_dbm} dBm, "
                 f"B_clip={args.adc_backoff_db} dB, c_tx={args.c_tx}\n\n")
         f.write("## 趋势与内点检查\n\n")
-        for msg in payload["trend_check"] + payload["interior_check_bound"] + payload["interior_check_norm"]:
+        for msg in payload["trend_check"] + payload["interior_check_bound"] + payload["interior_check_calibrated"]:
             f.write(f"- {msg}\n")
-        f.write("\n## 搜索结果（定理口径 J_bound）\n\n")
+        f.write("\n## 定理表达式经验代入诊断（不是严格理论上界）\n\n")
         f.write("| 方法 | k*/d | b*均值 | sigma_dp/c_tx | 宽松占比 | bar_omega | PAPR P99 | rho_clip | NMSE_total | J |\n")
         f.write("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
         for name, row in best_bound.items():
             f.write(
-                f"| {name} | {row['ratio']:.3f} | {row['b_star_mean']:.3e} | "
+                f"| {name} | {row['ratio']:.5f} | {row['b_star_mean']:.3e} | "
                 f"{row['sigma_dp_over_ctx']:.2f} | {row['loose_frac']:.2f} | {row['bar_omega']:.3f} | "
                 f"{row['papr_p99_db']:.2f} | {row['rho_clip']:.2e} | "
                 f"{row['nmse_total']:.2e} | {row['J_bound']:.4e} |\n"
             )
-        f.write("\n## 搜索结果（归一化工程口径 J_norm）\n\n")
-        f.write("| 方法 | k*/d | J_norm |\n|---|---:|---:|\n")
-        for name, row in best_norm.items():
-            f.write(f"| {name} | {row['ratio']:.3f} | {row.get('J_norm', float('nan')):.4f} |\n")
+        f.write("\n## 正式离线搜索结果（最新 v8.tex 校准联合设计口径）\n\n")
+        f.write("| 方法 | k*/d | k* | sigma_dp/c_tx | PAPR P99.9 | J_calibrated |\n")
+        f.write("|---|---:|---:|---:|---:|---:|\n")
+        for name, row in best_calibrated.items():
+            f.write(f"| {name} | {row['ratio']:.5f} | {row['k']} | "
+                    f"{row['sigma_dp_over_ctx']:.2f} | {row['papr_p999_db']:.2f} | "
+                    f"{row.get('J_calibrated', float('nan')):.4f} |\n")
 
 
 # ---------------------------------------------------------------------------
@@ -567,17 +614,17 @@ def main() -> None:
     parser.add_argument("--output-dir", default="exp_0810/results/exp1_offline")
     parser.add_argument("--dataset", default="femnist", choices=["mnist", "femnist"])
     parser.add_argument("--methods", default="topk,randk,full")
-    parser.add_argument("--ratios", default="0.01,0.02,0.05,0.10,0.15,0.20,0.30,0.50,0.80")
+    parser.add_argument("--ratios", default="0.00025,0.0005,0.001,0.002,0.0025,0.005,0.01,0.02,0.05,0.10,0.20,0.50")
     parser.add_argument("--calib-rounds", type=int, default=8)
     parser.add_argument("--device", default="cuda:3")
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--rounds", type=int, default=200, help="T used inside the bound")
     # Physical scenario knobs.
-    parser.add_argument("--epsilon", type=float, default=5.0)
+    parser.add_argument("--epsilon", type=float, default=15.0)
     parser.add_argument("--delta", type=float, default=1e-3)
     parser.add_argument("--p-cap-dbm", type=float, default=20.0)
     parser.add_argument("--adc-backoff-db", type=float, default=6.0, help="use inf to disable clipping")
-    parser.add_argument("--c-tx", type=float, default=0.02)
+    parser.add_argument("--c-tx", type=float, default=0.01)
     parser.add_argument("--num-clients", type=int, default=20)
     parser.add_argument("--oversampling", type=int, default=4)
     # Learning knobs.
@@ -585,11 +632,13 @@ def main() -> None:
     parser.add_argument("--local-steps", type=int, default=5)
     # Calibration statistics.
     parser.add_argument("--omega-quantile", type=float, default=0.10,
-                        help="low quantile as certified retention envelope")
+                        help="low empirical quantile for theorem-expression diagnostics only")
     parser.add_argument("--l-smooth", type=float, default=0.0,
                         help=">0 fixes L; 0 estimates by trajectory secant")
-    parser.add_argument("--lambda-channel", type=float, default=0.15)
-    parser.add_argument("--lambda-dr", type=float, default=0.50)
+    parser.add_argument("--lambda-retention", type=float, default=1.0)
+    parser.add_argument("--lambda-clip-bias", type=float, default=1.0)
+    parser.add_argument("--lambda-channel", type=float, default=1.0)
+    parser.add_argument("--lambda-dr", type=float, default=1.0)
     parser.add_argument("--no-advance-model", dest="advance_model", action="store_false", default=True)
     parser.add_argument("--no-ef-in-calibration", dest="ef_in_calibration", action="store_false", default=True)
     parser.add_argument("--mnist-root", default="data/MNIST/raw")
@@ -625,21 +674,23 @@ def main() -> None:
 
     calib = calibrate(args, phy, cfg)
     rows = build_rows(args, calib)
-    add_normalized_objective(rows, args.lambda_channel, args.lambda_dr)
+    add_calibrated_objective(
+        rows, args.lambda_retention, args.lambda_clip_bias, args.lambda_channel, args.lambda_dr
+    )
     best_bound = select_best(rows, "J_bound")
-    best_norm = select_best(rows, "J_norm")
+    best_calibrated = select_best(rows, "J_calibrated")
 
     plot_bound(rows, best_bound, out_dir)
-    plot_normalized(rows, best_norm, out_dir)
+    plot_normalized(rows, best_calibrated, out_dir)
     plot_ablation(rows, out_dir)
-    plot_papr_ccdf(calib, best_bound, out_dir)
-    write_outputs(args, out_dir, calib, rows, best_bound, best_norm)
+    plot_papr_ccdf(calib, best_calibrated, out_dir)
+    write_outputs(args, out_dir, calib, rows, best_bound, best_calibrated)
 
     print(json.dumps({
         "output_dir": str(out_dir),
-        "k_star_bound": {m: best_bound[m]["ratio"] for m in best_bound},
-        "k_star_norm": {m: best_norm[m]["ratio"] for m in best_norm},
-        "interior_check": interior_check(rows, best_bound, "J_bound"),
+        "k_star_calibrated": {m: best_calibrated[m]["ratio"] for m in best_calibrated},
+        "k_star_bound_diagnostic": {m: best_bound[m]["ratio"] for m in best_bound},
+        "interior_check": interior_check(rows, best_calibrated, "J_calibrated"),
     }, ensure_ascii=False, indent=2))
 
 

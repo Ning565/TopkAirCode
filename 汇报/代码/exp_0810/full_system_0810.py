@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""New-scenario (2026-08-04 spec) OFDM-AirComp-FL common system.
+"""New-scenario OFDM-AirComp-FL common system for experiments 1 and 2.
 
-This module is a fresh implementation of the journal communication scenario
-defined in `汇报/汇报8.4/通信场景/整体场景.md` and `PAPR场景.md`, aligned with
-the technical appendix `汇报/目前版本的论文/convergence_analysis.tex`.
+This module implements the journal communication and receiver chain using the
+algorithm/error interfaces in the latest `convergence_analysis.tex` and
+`v8.tex`.  Experiment 0810 deliberately extends their intrinsic-noise privacy
+interface with the artificial-noise top-up declared below.
 It deliberately does NOT import anything from `exp/common/full_system.py`
 (the old scenario code is kept untouched for later cross-checking).
 
@@ -26,12 +27,16 @@ Noise / power
     NF=5 dB  ->  sigma_sc^2 ~= 1.89e-16 W  (-127.2 dBm).
   * Whole-burst average transmit power budget P_cap (default 20 dBm).
 
-Per-round closed-form public scaling (single-round client-level DP)
-  * B_P^t(k)     = min_i |g_i^t| * sqrt(S*M*P_cap) / (c_tx*sqrt(k))
-  * B_eps_ex(k)  = sigma_sc/(2*c_tx*sqrt(k)) * (sqrt(eps+ln(1/delta))
-                                                - sqrt(ln(1/delta)))
-    (NO sqrt(T) composition factor: privacy is per-round.)
-  * b_t^*(k)     = min{B_eps_ex(k), B_P^t(k)}
+Per-round public scaling and privacy (artificial-noise top-up)
+  * c_tx is a declared, public, round-independent coordinate threshold.  It
+    is not recomputed from the optimizer learning rate.
+  * B_P^t(k) = min_i |g_i^t|*sqrt(S*M*P_cap)/(c_tx*sqrt(k)).
+  * Every client adds real Gaussian noise on the complete public d-coordinate
+    grid.  Thermal receiver noise is credited when calibrating the minimum
+    required artificial-noise variance.
+  * The conservative expected-power-feasible scale is
+        b_t^*(k)=B_P^t(k)/sqrt(1+2d/(N*margin(epsilon)^2)).
+    Privacy is per communication round; no sqrt(T) composition factor is used.
 
 Receiver front end (PAPR / AGC / radial clipping, dual-line statistics)
   * One real model coordinate per complex data subcarrier, M=1024,
@@ -56,7 +61,8 @@ Receiver front end (PAPR / AGC / radial clipping, dual-line statistics)
     (vs s_ideal = (1/N) sum_i s_i) are both reported.
 
 The FL part (Top-k / Rand-k / Full with error feedback and element-wise
-clipping at c_tx = eta*tau*C) mirrors the algorithm flow of the appendix.
+clipping at the independent public threshold c_tx) mirrors the algorithm flow
+of the latest appendix.
 """
 
 from __future__ import annotations
@@ -100,12 +106,29 @@ class PhyConfig:
     h_cut: float = 0.1               # per-client feasibility threshold
 
     p_cap_dbm: float = 20.0          # whole-burst average power budget
-    epsilon: float = 5.0             # per-round DP epsilon
+    epsilon: float = 15.0            # per-round DP epsilon (journal-range baseline)
     delta: float = 1e-3              # per-round DP delta
-    c_tx: float = 0.02               # public per-coordinate clip c_tx=eta*tau*C
+    # Independent public coordinate threshold.  Keeping this separate from
+    # eta*tau makes the privacy/power declaration invariant to optimizer
+    # schedules and is the experiment-0810 protocol convention.
+    # Empirical 0811 baseline.  A first-round FEMNIST scale audit found that
+    # 0.02 makes the recovered DP noise unnecessarily large, while values
+    # below 0.005 saturate almost every selected Top-k coordinate.  0.01 is
+    # the declared compromise; it remains independent of eta and tau.
+    c_tx: float = 0.01
 
     adc_backoff_db: float = 6.0      # B_clip; math.inf disables clipping
     max_burst_redraws: int = 10000   # safety bound on feasibility redraws
+
+    def __post_init__(self) -> None:
+        if self.num_clients <= 0 or self.subcarriers <= 0 or self.oversampling <= 0:
+            raise ValueError("client/subcarrier/oversampling counts must be positive")
+        if not (0.0 < self.delta < 1.0) or self.epsilon <= 0.0:
+            raise ValueError("per-round DP parameters require epsilon>0 and 0<delta<1")
+        if self.c_tx <= 0.0 or self.p_cap_w <= 0.0:
+            raise ValueError("c_tx and P_cap must be positive")
+        if not (0.0 <= self.h_cut < 1.0):
+            raise ValueError("h_cut must lie in [0,1)")
 
     @property
     def sigma_sc2(self) -> float:
@@ -261,11 +284,22 @@ def scaling_limits(
     sigma_a_sq = max(0.0, delta_k * delta_k / (m * m) - phy.sigma_sc2 / (b_star * b_star)) / (2.0 * n)
     v_real = phy.sigma_sc2 / 2.0 + b_star * b_star * n * sigma_a_sq
     sigma_dp = math.sqrt(v_real) / (b_star * n)
+    expected_power_worst = (
+        b_star * b_star * (max(1, k) * phy.c_tx * phy.c_tx + d_model * sigma_a_sq)
+        / (s_symbols * phy.subcarriers * g_abs_min * g_abs_min)
+    )
 
     eps_loose = (math.sqrt(2.0 * max(1, k)) / n + math.sqrt(ln_d)) ** 2 - ln_d
     rho = 2.0 * g_abs_min * math.sqrt(s_symbols * phy.subcarriers * phy.p_cap_w) / phy.sigma_sc
     m_free_sq = max(0.0, rho * rho - 2.0 * d_model / n)
     eps_free = (math.sqrt(m_free_sq) + math.sqrt(ln_d)) ** 2 - ln_d
+
+    # Numerical invariant for the real-axis Gaussian mechanism:
+    # (b Delta)^2 <= margin^2 (sigma_sc^2 + 2 b^2 N sigma_a^2).
+    dp_lhs = (b_star * delta_k) ** 2
+    dp_rhs = m * m * (phy.sigma_sc2 + 2.0 * b_star * b_star * n * sigma_a_sq)
+    if dp_lhs > dp_rhs * (1.0 + 1e-10):
+        raise RuntimeError("artificial-noise calibration violated the DP invariant")
 
     return {
         "b_power": b_power,
@@ -279,6 +313,11 @@ def scaling_limits(
         "b_privacy_intrinsic": b_priv_intrinsic,
         "eps_free_intrinsic": eps_free,
         "regime": "loose" if sigma_dp <= phy.c_tx else "dp_noise",
+        "dp_lhs_over_rhs": dp_lhs / max(dp_rhs, 1e-300),
+        # Gaussian artificial noise is unbounded, so its power statement is in
+        # expectation.  This diagnostic uses the worst aligned client channel.
+        "expected_power_worst_w": expected_power_worst,
+        "expected_power_utilization": expected_power_worst / phy.p_cap_w,
     }
 
 
@@ -390,10 +429,11 @@ class OFDMAirCompChannel:
             papr_db = 10.0 * torch.log10(papr)
             papr_mean_db = float(papr_db.mean())
             papr_p99_db = float(torch.quantile(papr_db, 0.99))
+            papr_p999_db = float(torch.quantile(papr_db, 0.999))
             papr_max_db = float(papr_db.max())
         else:
             papr_db = torch.zeros(0, dtype=torch.float64)
-            papr_mean_db = papr_p99_db = papr_max_db = float("nan")
+            papr_mean_db = papr_p99_db = papr_p999_db = papr_max_db = float("nan")
         round_sig_pow = float(p_sig.mean())               # (1/SQ) sum |r_sig|^2
         if round_sig_pow > 0.0:
             psr = sym_peak / round_sig_pow                # PSR_q^t
@@ -439,6 +479,7 @@ class OFDMAirCompChannel:
         metrics = {
             "papr_mean_db": papr_mean_db,
             "papr_p99_db": papr_p99_db,
+            "papr_p999_db": papr_p999_db,
             "papr_max_db": papr_max_db,
             "psr_round_db": psr_round_db,
             "silent_symbol_ratio": float(silent.to(torch.float64).mean()),
@@ -652,6 +693,11 @@ def make_model(dataset: str, num_classes: int) -> nn.Module:
     return StableCNN(num_classes) if dataset == "femnist" else SimpleMLP(num_classes)
 
 
+def model_dimension(dataset: str, num_classes: int) -> int:
+    """Compute d from the instantiated current model; never use a stale literal."""
+    return sum(p.numel() for p in make_model(dataset, num_classes).parameters())
+
+
 def load_problem(cfg: LearnConfig, dataset: str, num_clients: int):
     if dataset == "mnist":
         return load_mnist(cfg, num_clients)
@@ -762,6 +808,10 @@ class FLSystem:
     def run_training(self, method: str, ratio: float, log_prefix: str = "") -> List[Dict]:
         phy, cfg = self.phy, self.cfg
         set_seed(cfg.seed)
+        # FLSystem is reused across compression candidates in experiment 2.
+        # Recreate every iterator after resetting the RNG so all candidates see
+        # the same shuffled client-batch streams (common-random-number design).
+        self.iters = {cid: iter(loader) for cid, loader in self.loaders.items()}
         model = make_model(self.dataset, self.num_classes).to(cfg.device)
         d = sum(p.numel() for p in model.parameters())
         channel = OFDMAirCompChannel(phy, d, noise_seed=cfg.seed + 777)

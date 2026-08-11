@@ -50,8 +50,33 @@ SPACING_HZ = 15e3           # delta f
 H_CUT = 0.1
 P_CAP_DBM = 20.0
 DELTA_DP = 1e-3
-C_TX = 0.02
-D_MODEL = 403774            # StableCNN update dimension
+C_TX = 0.01
+
+
+def stable_cnn_dimension(num_classes: int = 62) -> int:
+    """Architecture-derived fallback matching full_system_0810.StableCNN.
+
+    When PyTorch is available, main() replaces this value with a count from an
+    actually instantiated model.  The formula keeps the torch-free pre-flight
+    usable without embedding a stale total parameter count.
+    """
+    conv1 = 32 * 1 * 3 * 3 + 32
+    gn1 = 2 * 32
+    conv2 = 64 * 32 * 3 * 3 + 64
+    gn2 = 2 * 64
+    conv3 = 128 * 64 * 3 * 3 + 128
+    gn3 = 2 * 128
+    fc1 = (128 * 3 * 3) * 256 + 256
+    fc2 = 256 * num_classes + num_classes
+    return conv1 + gn1 + conv2 + gn2 + conv3 + gn3 + fc1 + fc2
+
+
+def infer_model_dimension() -> tuple[int, str]:
+    try:
+        from full_system_0810 import model_dimension  # noqa: WPS433
+        return model_dimension("femnist", 62), "instantiated StableCNN"
+    except (ImportError, ModuleNotFoundError):
+        return stable_cnn_dimension(62), "architecture formula (torch-free fallback)"
 
 
 def sigma_sc() -> float:
@@ -72,9 +97,9 @@ def eps_loose(k: int) -> float:
     return (math.sqrt(2.0 * k) / N_CLIENTS + math.sqrt(ln_delta())) ** 2 - ln_delta()
 
 
-def noise_tax_sqrt_f(eps: float) -> float:
+def noise_tax_sqrt_f(eps: float, d_model: int) -> float:
     m = privacy_margin(eps)
-    return math.sqrt(1.0 + 2.0 * D_MODEL / (N_CLIENTS * m * m))
+    return math.sqrt(1.0 + 2.0 * d_model / (N_CLIENTS * m * m))
 
 
 def sigma_dp_over_ctx(eps: float, k: int) -> float:
@@ -114,23 +139,23 @@ def quantile(sorted_vals: list[float], p: float) -> float:
     return sorted_vals[min(len(sorted_vals) - 1, int(p * len(sorted_vals)))]
 
 
-def cross_check() -> str:
+def cross_check(d_model: int) -> str:
     """If torch + full_system_0810 are available, verify formula parity."""
     try:
         from full_system_0810 import PhyConfig, scaling_limits  # noqa: WPS433
     except Exception as exc:  # pragma: no cover - torch-less machines
         return f"skipped ({type(exc).__name__})"
     phy = PhyConfig()
-    s = math.ceil(D_MODEL / phy.subcarriers)
+    s = math.ceil(d_model / phy.subcarriers)
     k = 4038
     g = 2.5e-6
-    lim = scaling_limits(phy, s, k, g, D_MODEL)
-    assert abs(lim["noise_tax_sqrt_f"] - noise_tax_sqrt_f(phy.epsilon)) < 1e-9
+    lim = scaling_limits(phy, s, k, g, d_model)
+    assert abs(lim["noise_tax_sqrt_f"] - noise_tax_sqrt_f(phy.epsilon, d_model)) < 1e-9
     assert abs(lim["eps_loose_k"] - eps_loose(k)) / eps_loose(k) < 1e-9
     mine = sigma_dp_over_ctx(phy.epsilon, k)
     assert abs(lim["sigma_dp_over_ctx"] - mine) / mine < 1e-6, (lim["sigma_dp_over_ctx"], mine)
     b_pow = g * math.sqrt(s * phy.subcarriers * phy.p_cap_w) / (phy.c_tx * math.sqrt(k))
-    assert abs(lim["b_star"] - b_pow / noise_tax_sqrt_f(phy.epsilon)) / lim["b_star"] < 1e-9
+    assert abs(lim["b_star"] - b_pow / noise_tax_sqrt_f(phy.epsilon, d_model)) / lim["b_star"] < 1e-9
     return "passed"
 
 
@@ -142,14 +167,19 @@ def main() -> None:
     parser.add_argument("--mc-rounds", type=int, default=400)
     parser.add_argument("--epsilons", type=float, nargs="+", default=[1.0, 2.5, 5.0, 10.0, 15.0, 20.0, 30.0])
     parser.add_argument("--kd-ratios", type=float, nargs="+", default=[2.5e-4, 1e-3, 2.5e-3, 1e-2, 0.05, 0.15])
+    parser.add_argument("--d-model", type=int, default=0,
+                        help="override model dimension; default computes it from StableCNN")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    s_symbols = math.ceil(D_MODEL / SUBCARRIERS)
-    check = cross_check()
+    inferred_d, d_source = infer_model_dimension()
+    d_model = args.d_model if args.d_model > 0 else inferred_d
+    s_symbols = math.ceil(d_model / SUBCARRIERS)
+    check = cross_check(d_model)
+    print(f"[diag] d_model = {d_model} from {d_source}; S = {s_symbols}")
     print(f"[diag] cross-check vs full_system_0810.scaling_limits: {check}")
     print(f"[diag] sigma_sc = {sigma_sc():.4e} sqrt(W); floor of margin*sqrt(F) = "
-          f"{math.sqrt(2.0 * D_MODEL / N_CLIENTS):.1f}")
+          f"{math.sqrt(2.0 * d_model / N_CLIENTS):.1f}")
 
     g_sorted = mc_g_min(args.seed, CELL_RADIUS_M, args.topologies, args.mc_rounds)
     g_p50 = quantile(g_sorted, 0.50)
@@ -160,14 +190,14 @@ def main() -> None:
     rows: list[dict] = []
     for eps in args.epsilons:
         for kd in args.kd_ratios:
-            k = max(1, int(D_MODEL * kd))
+            k = max(1, int(d_model * kd))
             rows.append({
                 "epsilon": eps,
                 "kd": kd,
                 "k": k,
                 "sigma_dp_over_ctx": sigma_dp_over_ctx(eps, k),
                 "eps_loose_k": eps_loose(k),
-                "noise_tax_sqrt_f": noise_tax_sqrt_f(eps),
+                "noise_tax_sqrt_f": noise_tax_sqrt_f(eps, d_model),
                 "sig_over_art_amp": sig_over_art(eps, k),
             })
     with (args.output_dir / "dp_design_grid.csv").open("w", newline="", encoding="utf-8") as fh:
@@ -182,8 +212,10 @@ def main() -> None:
         targets[f"eps_loose={eps_t:g}"] = int((N_CLIENTS * m) ** 2 / 2.0)
     (args.output_dir / "transition_summary.json").write_text(json.dumps({
         "cross_check": check,
+        "d_model": d_model,
+        "d_source": d_source,
         "rho_p50": rho_p50,
-        "margin_sqrtF_floor": math.sqrt(2.0 * D_MODEL / N_CLIENTS),
+        "margin_sqrtF_floor": math.sqrt(2.0 * d_model / N_CLIENTS),
         "k_for_target_eps_loose": targets,
     }, indent=2), encoding="utf-8")
 
@@ -191,8 +223,9 @@ def main() -> None:
         "# Exp3 DP design diagnosis (artificial-noise top-up)",
         "",
         f"- cross-check vs `scaling_limits`: {check}",
+        f"- model dimension: d={d_model} ({d_source}), S={s_symbols}",
         f"- intrinsic free region: needs margin*sqrt(F) >= rho = {rho_p50:.3e}; "
-        f"parameter-free floor sqrt(2d/N) = {math.sqrt(2.0 * D_MODEL / N_CLIENTS):.1f} -> unreachable, "
+        f"parameter-free floor sqrt(2d/N) = {math.sqrt(2.0 * d_model / N_CLIENTS):.1f} -> unreachable, "
         "artificial noise is always active at eps <= 30 (reported honestly).",
         "- the operational transition is eps_loose(k) = (sqrt(2k)/N + sqrt(ln 1/dlt))^2 - ln 1/dlt:",
         "",
@@ -200,7 +233,7 @@ def main() -> None:
         "|---|---:|---:|",
     ]
     for name, kk in targets.items():
-        lines.append(f"| {name} | {kk} | {kk / D_MODEL:.2e} |")
+        lines.append(f"| {name} | {kk} | {kk / d_model:.2e} |")
     lines += [
         "",
         "| eps | k/d | sigma_dp/c_tx | eps_loose(k) | sqrt(F) | sig/art amp |",
