@@ -160,7 +160,11 @@ Substituting the calibration~\eqref{eqn:artificial_noise_calibration} at equalit
 \end{equation}
 \begin{remark}[\bf Expected versus Realized Noise Power]
     \label{rem:chi_square}
-    The constraint is stated in expectation. Conditional on $s_{A,i}^t(k)$, $\|s_{A,i}^t(k)+a_i^t\|_2^2/\sigma_{a,t}^2$ is noncentral chi-square with $d$ degrees of freedom and noncentrality $\|s_{A,i}^t(k)\|_2^2/\sigma_{a,t}^2$. A deterministic or specified high-probability per-burst guarantee therefore requires an explicit power margin obtained from a noncentral-chi-square concentration bound; the expected-power statement alone must not be presented as a realization-wise guarantee.
+    The constraint is stated in expectation. Conditional on $s_{A,i}^t(k)$, $\|s_{A,i}^t(k)+a_i^t\|_2^2/\sigma_{a,t}^2$ is noncentral chi-square with $d$ degrees of freedom and noncentrality $\|s_{A,i}^t(k)\|_2^2/\sigma_{a,t}^2$. A specified high-probability per-burst guarantee follows from the Laurent--Massart upper-tail bound: with $\bar\lambda\triangleq kc_{\mathrm{tx}}^2/\sigma_{a,t}^2$ and $t\triangleq\ln(1/(1-\eta))$ for a declared confidence $\eta\in(0,1)$, the relative margin
+    \begin{equation}
+        M\triangleq\frac{\big(2\sqrt{(d+2\bar\lambda)\,t}+2t\big)\sigma_{a,t}^2}{kc_{\mathrm{tx}}^2+d\sigma_{a,t}^2}
+    \end{equation}
+    satisfies $\Pr\big[\|s_{A,i}^t(k)+a_i^t\|_2^2\le\mathbb E\|s_{A,i}^t(k)+a_i^t\|_2^2(1+M)\big]\ge\eta$ per burst, uniformly over all realizations with $\|s_{A,i}^t(k)\|_2^2\le kc_{\mathrm{tx}}^2$; discounting the power budget by $(1+M)^{-1}$ upgrades the expected constraint accordingly. In the intrinsic regime $\sigma_{a,t}=0$ the transmit energy is deterministic given the update and no margin is needed.
 \end{remark}
 For replace-one client adjacency, the sparse-query sensitivity before multiplication by $b_t$ is
 \begin{equation}

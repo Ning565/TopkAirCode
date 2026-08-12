@@ -302,6 +302,8 @@ def main() -> None:
     parser.add_argument("--p-operating-dbm", type=float, default=float("nan"),
                         help="open-loop power-control point (dBm); NaN uses P_cap; "
                              "-30.3 reproduces the legacy SNR15 effective noise at r=250m")
+    parser.add_argument("--power-tail-conf", type=float, default=1.0 - 1e-6,
+                        help="per-burst power confidence for the Laurent-Massart margin (DP_MECHANISM §6.4)")
     parser.add_argument("--num-clients", type=int, default=20)
     parser.add_argument("--oversampling", type=int, default=4)
     # Learning knobs.
@@ -330,6 +332,7 @@ def main() -> None:
         oversampling=args.oversampling,
         dp_mode=args.dp_mode,
         p_operating_dbm=args.p_operating_dbm,
+        power_tail_conf=args.power_tail_conf,
     )
     cfg = LearnConfig(
         seed=args.seed,

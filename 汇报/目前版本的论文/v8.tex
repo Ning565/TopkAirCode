@@ -286,7 +286,7 @@ Let $c_{\mathrm{tx}}>0$ be a declared public coordinate threshold fixed independ
 \begin{equation}
  P_i^t=\frac{b_t^2}{SM|g_i^t|^2}\big\|\mathbf s_i^t+\mathbf a_i^t\big\|_2^2,
 \end{equation}
-whose expectation is $\frac{b_t^2}{SM|g_i^t|^2}(\|\mathbf s_i^t\|_2^2+d\sigma_{a,t}^2)$. Conditional on $\mathbf s_i^t$, the realized squared norm is noncentral chi-square after normalization; hence the power ceiling below is an expected-power guarantee. A deterministic or specified high-probability per-burst guarantee requires an explicit noncentral-chi-square concentration margin. Using $\|\mathbf s_i^t\|_2\le c_{\mathrm{tx}}\sqrt{k}$, define
+whose expectation is $\frac{b_t^2}{SM|g_i^t|^2}(\|\mathbf s_i^t\|_2^2+d\sigma_{a,t}^2)$. Conditional on $\mathbf s_i^t$, the realized squared norm is noncentral chi-square after normalization; the power ceiling below is therefore an expected-power guarantee, and a specified high-probability per-burst guarantee follows by discounting the budget with the explicit Laurent--Massart margin derived in the appendix. Using $\|\mathbf s_i^t\|_2\le c_{\mathrm{tx}}\sqrt{k}$, define
 \begin{equation}
  B_P^t(k)=\min_{1\le i\le N}
  \frac{|g_i^t|\sqrt{SM P_{\mathrm{cap}}}}{c_{\mathrm{tx}}\sqrt{k}}.

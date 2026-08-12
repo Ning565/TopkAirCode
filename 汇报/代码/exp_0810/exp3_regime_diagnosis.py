@@ -102,6 +102,17 @@ def noise_tax_sqrt_f(eps: float, d_model: int) -> float:
     return math.sqrt(1.0 + 2.0 * d_model / (N_CLIENTS * m * m))
 
 
+def power_tail_margin(eps: float, k: int, d_model: int, sigma_a_sq: float,
+                      conf: float = 1.0 - 1e-6) -> float:
+    """Laurent-Massart per-burst margin at worst-case signal energy (DP §6.4)."""
+    if sigma_a_sq <= 0.0:
+        return 0.0
+    t = math.log(1.0 / (1.0 - conf))
+    e_sig = k * C_TX * C_TX
+    lam = e_sig / sigma_a_sq
+    return (2.0 * math.sqrt((d_model + 2.0 * lam) * t) + 2.0 * t) * sigma_a_sq / (e_sig + d_model * sigma_a_sq)
+
+
 def sigma_dp_over_ctx(eps: float, k: int) -> float:
     """Recovered DP noise over c_tx (thermal credit negligible on this link)."""
     return math.sqrt(2.0 * k) / (N_CLIENTS * privacy_margin(eps))
@@ -155,7 +166,15 @@ def cross_check(d_model: int) -> str:
     mine = sigma_dp_over_ctx(phy.epsilon, k)
     assert abs(lim["sigma_dp_over_ctx"] - mine) / mine < 1e-6, (lim["sigma_dp_over_ctx"], mine)
     b_pow = g * math.sqrt(s * phy.subcarriers * phy.p_cap_w) / (phy.c_tx * math.sqrt(k))
-    assert abs(lim["b_star"] - b_pow / noise_tax_sqrt_f(phy.epsilon, d_model)) / lim["b_star"] < 1e-9
+    assert abs(lim["b_star"] - b_pow / noise_tax_sqrt_f(phy.epsilon, d_model)
+               / math.sqrt(1.0 + lim["power_tail_margin"])) / lim["b_star"] < 1e-9
+    # Independent margin re-derivation: b discounted first, then sigma_a, then M.
+    b_disc = b_pow / noise_tax_sqrt_f(phy.epsilon, d_model)
+    m = privacy_margin(phy.epsilon)
+    sa2 = max(0.0, (2.0 * phy.c_tx * math.sqrt(k)) ** 2 / (m * m)
+              - phy.sigma_sc2 / (b_disc * b_disc)) / (2.0 * N_CLIENTS)
+    mine_m = power_tail_margin(phy.epsilon, k, d_model, sa2, phy.power_tail_conf)
+    assert abs(mine_m - lim["power_tail_margin"]) < 1e-9, (mine_m, lim["power_tail_margin"])
     return "passed"
 
 

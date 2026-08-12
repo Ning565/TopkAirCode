@@ -132,6 +132,18 @@ class PhyConfig:
     # geometry unchanged; back-solving distance instead would need ~12 km).
     p_operating_dbm: float = float("nan")
 
+    # Per-burst power confidence (DP_MECHANISM_0810.md §6.4).  The realized
+    # transmit energy ||s_i + a_i||^2, conditional on s_i, is noncentral
+    # chi-square, so an expected-power statement is not a realization-wise
+    # guarantee.  The Laurent-Massart upper-tail bound yields the explicit
+    # margin
+    #   M_eta = [2*sqrt((kc_tx^2 + (d+2kc_tx^2)*sigma_a^2)*t) + 2t*sigma_a^2]
+    #           / (kc_tx^2 + d*sigma_a^2),   t = ln(1/(1-power_tail_conf)),
+    # and discounting the power budget by 1/(1+M_eta) upgrades the constraint
+    # to P(||s+a||^2 <= E||s+a||^2(1+M_eta)) >= power_tail_conf per burst,
+    # uniformly over all realizations of s_i with ||s_i||^2 <= kc_tx^2.
+    power_tail_conf: float = 1.0 - 1e-6
+
     def __post_init__(self) -> None:
         if self.num_clients <= 0 or self.subcarriers <= 0 or self.oversampling <= 0:
             raise ValueError("client/subcarrier/oversampling counts must be positive")
@@ -145,6 +157,8 @@ class PhyConfig:
             raise ValueError("dp_mode must be 'topup' or 'off'")
         if not math.isnan(self.p_operating_dbm) and self.p_operating_dbm > self.p_cap_dbm:
             raise ValueError("operating power cannot exceed P_cap")
+        if not (0.0 < self.power_tail_conf < 1.0):
+            raise ValueError("power_tail_conf must lie in (0,1)")
 
     @property
     def sigma_sc2(self) -> float:
@@ -308,10 +322,26 @@ def scaling_limits(
         tax_f = 1.0
         b_star = b_power
         sigma_a_sq = 0.0
+        tail_margin = 0.0
     else:
         tax_f = 1.0 + 2.0 * d_model / (n * m * m)
         b_star = b_power / math.sqrt(tax_f)
         sigma_a_sq = max(0.0, delta_k * delta_k / (m * m) - phy.sigma_sc2 / (b_star * b_star)) / (2.0 * n)
+        # Laurent-Massart per-burst power margin (see PhyConfig docstring).
+        # Evaluated at the worst-case signal energy kc_tx^2; vanishes when the
+        # injection vanishes, because the remaining power is then deterministic
+        # given s_i and already bounded by the ceiling.
+        if sigma_a_sq > 0.0:
+            t_tail = math.log(1.0 / (1.0 - phy.power_tail_conf))
+            e_sig_worst = max(1, k) * phy.c_tx * phy.c_tx
+            mean_e = e_sig_worst + d_model * sigma_a_sq
+            lam = e_sig_worst / sigma_a_sq
+            tail_margin = (
+                2.0 * math.sqrt((d_model + 2.0 * lam) * t_tail) + 2.0 * t_tail
+            ) * sigma_a_sq / mean_e
+        else:
+            tail_margin = 0.0
+        b_star /= math.sqrt(1.0 + tail_margin)
     v_real = phy.sigma_sc2 / 2.0 + b_star * b_star * n * sigma_a_sq
     sigma_dp = math.sqrt(v_real) / (b_star * n)
     expected_power_worst = (
@@ -340,6 +370,7 @@ def scaling_limits(
         "b_power": b_power,
         "b_star": b_star,
         "noise_tax_sqrt_f": math.sqrt(tax_f),
+        "power_tail_margin": tail_margin,
         "sigma_a_client": math.sqrt(sigma_a_sq),
         "sigma_dp": sigma_dp,
         "sigma_dp_over_ctx": sigma_dp / phy.c_tx,
@@ -416,6 +447,8 @@ class OFDMAirCompChannel:
         round_idx: int,
         collect_papr_samples: bool = False,
         sigma_a: float = 0.0,
+        g_abs_min: float = 0.0,
+        k: int = 0,
     ) -> Tuple[torch.Tensor, Dict[str, float]]:
         """One counted logical round: aggregate, clip, recover, measure.
 
@@ -425,6 +458,13 @@ class OFDMAirCompChannel:
         vector, which is statistically identical.  The structure line r_sig
         keeps the pure sparse aggregate (no artificial, no thermal noise);
         the hardware line r_rx carries signal + artificial + thermal.
+
+        When `g_abs_min` > 0 and `k` > 0, the round also reports the
+        worst-client realization-wise transmit-power utilization
+        b^2 max_i ||s_i+a_i||^2 / (SM|g_abs_min|^2 P_op).  The Laurent-Massart
+        margin (scaling_limits["power_tail_margin"]) guarantees this ratio
+        stays <= 1 at the declared confidence for every burst; its expected
+        value is 1/(1+M).
         """
         phy = self.phy
         n_clients = len(signals)
@@ -438,9 +478,31 @@ class OFDMAirCompChannel:
             art = torch.randn(self.d, generator=gen_a, dtype=torch.float64) * (
                 math.sqrt(float(n_clients)) * sigma_a
             )
-            freq_tx = b_star * self.pack(agg + art)       # transmitted composite
+            tx_sum = agg + art
+            freq_tx = b_star * self.pack(tx_sum)          # transmitted composite
         else:
+            art = torch.zeros(self.d, dtype=torch.float64)
+            tx_sum = agg
             freq_tx = freq_sig
+        # Per-client realization-wise transmit energy ||s_i + a_i||^2 for the
+        # power audit.  The transmitted composite uses the statistically
+        # equivalent aggregate draw above; the audit needs per-client noise
+        # with variance sigma_a^2 (NOT the aggregate N*sigma_a^2), so it draws
+        # an independent N x d sample under a dedicated seed.
+        if sigma_a > 0.0:
+            gen_audit = torch.Generator(device="cpu").manual_seed(self.noise_seed + 439807 * (round_idx + 1))
+            art_clients = torch.randn(n_clients, self.d, generator=gen_audit, dtype=torch.float64) * sigma_a
+            per_client_energy = (stack + art_clients).pow(2).sum(dim=1)
+        else:
+            per_client_energy = stack.pow(2).sum(dim=1)
+        if g_abs_min > 0.0 and k > 0:
+            worst_energy = float(per_client_energy.max())
+            realized_util = (
+                b_star * b_star * worst_energy
+                / (self.S * self.M * g_abs_min * g_abs_min * phy.p_op_w)
+            )
+        else:
+            realized_util = float("nan")
         # Frequency-domain complex noise CN(0, sigma_sc^2), same IFFT as signal.
         gen = torch.Generator(device="cpu").manual_seed(self.noise_seed + 104729 * (round_idx + 1))
         noise_std = math.sqrt(phy.sigma_sc2 / 2.0)
@@ -527,6 +589,7 @@ class OFDMAirCompChannel:
             "nmse_clip": nmse_clip,
             "nmse_total": nmse_total,
             "sigma_a_client": sigma_a,
+            "realized_power_utilization_max": realized_util,
             "art_over_thermal_db": (
                 10.0 * math.log10(2.0 * b_star * b_star * n_clients * sigma_a * sigma_a / phy.sigma_sc2)
                 if sigma_a > 0.0 else -300.0
@@ -864,7 +927,8 @@ class FLSystem:
                 print(
                     f"{log_prefix}[{self.dataset}/{method} r={ratio:.3f}] regime forecast: "
                     f"eps={phy.epsilon:g} -> b*={lim['b_star']:.3e} "
-                    f"(power tax sqrt(F)={lim['noise_tax_sqrt_f']:.1f}), "
+                    f"(power tax sqrt(F)={lim['noise_tax_sqrt_f']:.1f}, "
+                    f"per-burst margin M={lim['power_tail_margin']:.2e}), "
                     f"sigma_dp/c_tx={lim['sigma_dp_over_ctx']:.2f} ({lim['regime']}), "
                     f"eps_loose(k)={lim['eps_loose_k']:.1f}, "
                     f"free_intrinsic={bool(lim['free_intrinsic'])}",
@@ -891,7 +955,10 @@ class FLSystem:
                 losses.append(loss)
                 retained.append(ret)
                 mask_union |= mask
-            update, comm = channel.transmit_round(signals, lim["b_star"], r, sigma_a=lim["sigma_a_client"])
+            update, comm = channel.transmit_round(
+                signals, lim["b_star"], r,
+                sigma_a=lim["sigma_a_client"], g_abs_min=float(rc.g_abs.min()), k=k,
+            )
             if method == "randk" and cfg.randk_public_mask_denoise and common_idx is not None:
                 keep = torch.zeros(d, dtype=torch.bool)
                 keep[common_idx] = True

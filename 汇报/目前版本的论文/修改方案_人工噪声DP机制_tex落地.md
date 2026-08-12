@@ -142,16 +142,20 @@ $\|s\|_2^2+d\sigma_{a,t}^2\le kc_{\mathrm{tx}}^2F$ with the $k$-independent nois
 \end{equation}
 ```
 
-并加期望口径 remark（回应"功率高概率"遗留问题；Liu TWC'24 式(10) 亦为期望口径）：
+并加功率口径 remark（§6.4 已于 0812 用 Laurent–Massart 裕量解决；Liu TWC'24 式(10) 为期望口径先例）：
 
 ```latex
-\begin{remark}[Expected versus realized noise power]
+\begin{remark}[Expected versus Realized Noise Power]
 The constraint is stated in expectation. Conditional on $s_{A,i}^t(k)$,
 $\|s_{A,i}^t(k)+a_i^t\|_2^2/\sigma_{a,t}^2$ is noncentral chi-square with $d$ degrees of freedom
-and noncentrality $\|s_{A,i}^t(k)\|_2^2/\sigma_{a,t}^2$. A deterministic or specified
-high-probability per-burst guarantee therefore requires an explicit power margin obtained from a
-noncentral-chi-square concentration bound; the expected-power statement alone is not a
-realization-wise guarantee.
+and noncentrality $\|s_{A,i}^t(k)\|_2^2/\sigma_{a,t}^2$. A specified high-probability per-burst
+guarantee follows from the Laurent--Massart upper-tail bound: with
+$\bar\lambda=kc_{\mathrm{tx}}^2/\sigma_{a,t}^2$ and $t=\ln(1/(1-\eta))$ for declared confidence
+$\eta\in(0,1)$, the relative margin
+$M=(2\sqrt{(d+2\bar\lambda)t}+2t)\sigma_{a,t}^2/(kc_{\mathrm{tx}}^2+d\sigma_{a,t}^2)$ satisfies
+$\Pr[\|s+a\|^2\le\mathbb E\|s+a\|^2(1+M)]\ge\eta$ per burst, uniformly over
+$\|s\|^2\le kc_{\mathrm{tx}}^2$; discounting the budget by $(1+M)^{-1}$ upgrades the constraint.
+In the intrinsic regime $\sigma_{a,t}=0$ no margin is needed.
 \end{remark}
 ```
 
