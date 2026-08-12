@@ -202,7 +202,7 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
         br: {
             "omega": [], "beta2": [], "inv_b2": [], "noise_over_b2": [], "eclip_over_b2": [],
             "rho_clip": [], "d_clip": [], "papr_p99_db": [], "papr_p999_db": [], "psr_round_db": [],
-            "nmse_clip": [], "nmse_total": [], "silent_ratio": [],
+            "nmse_clip": [], "nmse_total": [], "nmse_denoised": [], "silent_ratio": [],
             "b_star": [], "sigma_a": [], "sigma_dp": [], "loose": [], "papr_samples": [],
             "dp_ratio": [], "power_util": [], "sig_energy": [],
         }
@@ -260,7 +260,11 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
                     ef_mem[br][cid] = v - tilde_v
                 signals.append(s_tx)
             _, comm = channel.transmit_round(
-                signals, lim["b_star"], t, collect_papr_samples=True, sigma_a=lim["sigma_a_client"]
+                signals, lim["b_star"], t, collect_papr_samples=True, sigma_a=lim["sigma_a_client"],
+                denoise_m=(
+                    min(d, phy.num_clients * k)
+                    if cfg.bs_denoise_mode == "topm" and k < d else 0
+                ),
             )
             a = acc[br]
             b2 = lim["b_star"] ** 2
@@ -279,6 +283,7 @@ def calibrate(args, phy: PhyConfig, cfg: LearnConfig) -> Dict[str, Any]:
             a["psr_round_db"].append(comm["psr_round_db"])
             a["nmse_clip"].append(comm["nmse_clip"])
             a["nmse_total"].append(comm["nmse_total"])
+            a["nmse_denoised"].append(comm["nmse_total_denoised"])
             a["silent_ratio"].append(comm["silent_symbol_ratio"])
             a["b_star"].append(lim["b_star"])
             a["sigma_a"].append(lim["sigma_a_client"])
@@ -364,8 +369,17 @@ def build_rows(args, calib: Dict[str, Any]) -> List[Dict[str, Any]]:
             # Absolute-scale audit (0811 doc): chi = d*sigma_dp^2/E||s_bar||^2
             # (full-d noise floor is 2d/(N^2 margin^2)); sigma_dp vs the real
             # per-coordinate update RMS is the training-viability forecast.
+            # chi_eff is the post-denoising counterpart (protocol D4): the BS
+            # top-m truncation keeps m = min(d, N*k) public coordinates, so
+            # the effective noise dimension entering the model is m, not d.
             "mean_sig_energy": mean_sig_energy,
             "chi_dp": consts["d"] * sigma_dp_mean_v ** 2 / max(mean_sig_energy, 1e-300),
+            "denoise_m": min(d, int(consts["N"]) * k) if k < d else d,
+            "chi_eff": (
+                min(d, int(consts["N"]) * k) * sigma_dp_mean_v ** 2
+                / max(mean_sig_energy, 1e-300)
+            ),
+            "nmse_denoised": float(np.mean(a["nmse_denoised"])),
             "sigma_dp_over_update_rms": sigma_dp_mean_v / max(consts["update_rms"], 1e-300),
             "dp_lhs_over_rhs_max": float(np.max(a["dp_ratio"])),
             "expected_power_utilization_max": float(np.max(a["power_util"])),
@@ -420,6 +434,34 @@ def add_calibrated_objective(
             )
 
 
+def apply_chi_gate(rows: List[Dict[str, Any]], chi_max: float) -> List[str]:
+    """Absolute-scale feasibility gate (0811 doc §6 + 修改方案 §7.3).
+
+    chi_eff = min(d, N*k) * sigma_dp^2 / E||s_bar||^2 is the post-denoising
+    noise-to-signal energy ratio with a fixed physical meaning; it is NOT
+    min-max normalized, so it constrains the absolute scale that the
+    per-mechanism calibrated score deliberately removes.  'full' is the
+    uncompressed baseline branch and is exempt from the gate.
+    """
+    msgs = []
+    for method in sorted({r["method"] for r in rows}):
+        sub = [r for r in rows if r["method"] == method]
+        if method == "full":
+            for r in sub:
+                r["chi_feasible"] = 1.0
+            continue
+        feas = 0
+        for r in sub:
+            r["chi_feasible"] = 1.0 if r["chi_eff"] <= chi_max else 0.0
+            feas += int(r["chi_feasible"])
+        if feas == 0:
+            msgs.append(f"{method}: NO candidate passes chi_eff <= {chi_max:g}; "
+                        "falling back to min-chi_eff selection [WARNING]")
+        else:
+            msgs.append(f"{method}: {feas}/{len(sub)} candidates pass chi_eff <= {chi_max:g}")
+    return msgs
+
+
 def select_best(rows: List[Dict[str, Any]], key: str) -> Dict[str, Dict[str, Any]]:
     best: Dict[str, Dict[str, Any]] = {}
     for method in sorted({r["method"] for r in rows}):
@@ -427,7 +469,12 @@ def select_best(rows: List[Dict[str, Any]], key: str) -> Dict[str, Dict[str, Any
         if method == "full":
             best["full"] = sub[0]
             continue
-        best[method] = min(sub, key=lambda r: r[key])
+        feasible = [r for r in sub if r.get("chi_feasible", 1.0) > 0.0]
+        if feasible:
+            best[method] = min(feasible, key=lambda r: r[key])
+        else:
+            # Gate fallback: everything infeasible -> least-infeasible pick.
+            best[method] = min(sub, key=lambda r: r["chi_eff"])
     return best
 
 
@@ -565,7 +612,7 @@ def plot_papr_ccdf(calib, best, out_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_calibrated) -> None:
+def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_calibrated, chi_gate_msgs) -> None:
     csv_rows = [{k: v for k, v in r.items()} for r in rows]
     with (out_dir / "objective_terms.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(csv_rows[0].keys()))
@@ -583,11 +630,15 @@ def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_calibrated)
         "interior_check_bound": interior_check(rows, best_bound, "J_bound"),
         "interior_check_calibrated": interior_check(rows, best_calibrated, "J_calibrated"),
         "trend_check": trend_check(rows),
+        "chi_gate": chi_gate_msgs,
         # Absolute-scale DP feasibility audit at the officially selected k*
         # (0811 doc requirement: report, do not hide via normalization).
         "dp_feasibility": {
             name: {
                 "chi_dp": row["chi_dp"],
+                "chi_eff": row.get("chi_eff", float("nan")),
+                "denoise_m": row.get("denoise_m", 0),
+                "nmse_denoised": row.get("nmse_denoised", float("nan")),
                 "sigma_dp_mean": row["sigma_dp_mean"],
                 "sigma_dp_over_update_rms": row["sigma_dp_over_update_rms"],
                 "update_rms": calib["consts"]["update_rms"],
@@ -616,6 +667,9 @@ def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_calibrated)
         f.write("## 趋势与内点检查\n\n")
         for msg in payload["trend_check"] + payload["interior_check_bound"] + payload["interior_check_calibrated"]:
             f.write(f"- {msg}\n")
+        f.write("\n## chi_eff 可行性门槛（BS 去噪后噪声/信号能量比，绝对量纲）\n\n")
+        for msg in payload["chi_gate"]:
+            f.write(f"- {msg}\n")
         f.write("\n## 定理表达式经验代入诊断（不是严格理论上界）\n\n")
         f.write("| 方法 | k*/d | b*均值 | sigma_dp/c_tx | 宽松占比 | bar_omega | PAPR P99 | rho_clip | NMSE_total | J |\n")
         f.write("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
@@ -635,14 +689,15 @@ def write_outputs(args, out_dir: Path, calib, rows, best_bound, best_calibrated)
                     f"{row.get('J_calibrated', float('nan')):.4f} |\n")
         f.write("\n## DP 绝对尺度可行性审计（chi 与更新 RMS 口径，不经归一化）\n\n")
         f.write(f"- 更新基准：median per-coordinate update RMS = {c['update_rms']:.3e}\n")
-        f.write("- chi_dp = d*sigma_dp^2/E||s_bar||^2（全 d 维补噪下的下限为 "
-                "2d/(N^2*margin^2)，对比旧实验三：sigma=0.0055 仍训到 81%，"
-                "故 chi 作报告项而非硬门槛）\n\n")
-        f.write("| 方法 | k*/d | chi_dp | sigma_dp | sigma_dp/update_rms | 告警 |\n")
-        f.write("|---|---:|---:|---:|---:|---|\n")
+        f.write("- chi_dp = d*sigma_dp^2/E||s_bar||^2（不去噪口径）；"
+                "chi_eff = min(d,N*k)*sigma_dp^2/E||s_bar||^2（BS top-m 去噪后口径，"
+                "作可行性门槛，修改方案 §7.3）\n\n")
+        f.write("| 方法 | k*/d | chi_dp | chi_eff | nmse_denoised | sigma_dp | sigma_dp/update_rms | 告警 |\n")
+        f.write("|---|---:|---:|---:|---:|---:|---:|---|\n")
         for name, row in best_calibrated.items():
             warn = "COLLAPSE-RISK" if row["sigma_dp_mean"] > 0.02 else ""
             f.write(f"| {name} | {row['ratio']:.5f} | {row['chi_dp']:.3e} | "
+                    f"{row.get('chi_eff', float('nan')):.3e} | {row.get('nmse_denoised', float('nan')):.3e} | "
                     f"{row['sigma_dp_mean']:.3e} | {row['sigma_dp_over_update_rms']:.1f} | {warn} |\n")
 
 
@@ -674,6 +729,16 @@ def main() -> None:
                              "-30.3 reproduces the legacy SNR15 effective noise at r=250m")
     parser.add_argument("--power-tail-conf", type=float, default=1.0 - 1e-6,
                         help="per-burst power confidence for the Laurent-Massart margin (DP_MECHANISM §6.4)")
+    parser.add_argument("--bs-denoise", default="off", choices=["topm", "off"],
+                        help="BS-side public top-m truncation of the recovered vector "
+                             "(m=min(d,N*k), DP post-processing, 修改方案 §7.2). "
+                             "0812 audit: enable ONLY when sigma_dp < per-coordinate "
+                             "aggregate signal scale (~c_tx/N); at eps=15 ranking is "
+                             "noise-driven and truncation stalls training -> default off")
+    parser.add_argument("--chi-max", type=float, default=100.0,
+                        help="feasibility gate on chi_eff = min(d,N*k)*sigma_dp^2/E||s_bar||^2 "
+                             "(post-denoising noise-to-signal ENERGY ratio; 100 = one-order "
+                             "amplitude guard); inf disables the gate")
     parser.add_argument("--num-clients", type=int, default=20)
     parser.add_argument("--oversampling", type=int, default=4)
     # Learning knobs.
@@ -714,6 +779,7 @@ def main() -> None:
         lr=args.lr,
         local_steps=args.local_steps,
         rounds=args.rounds,
+        bs_denoise_mode=args.bs_denoise,
         mnist_root=args.mnist_root,
         femnist_path=args.femnist_path,
         femnist_test_path=args.femnist_test_path,
@@ -729,6 +795,7 @@ def main() -> None:
     add_calibrated_objective(
         rows, args.lambda_retention, args.lambda_clip_bias, args.lambda_channel, args.lambda_dr
     )
+    chi_gate_msgs = apply_chi_gate(rows, args.chi_max)
     best_bound = select_best(rows, "J_bound")
     best_calibrated = select_best(rows, "J_calibrated")
 
@@ -736,12 +803,13 @@ def main() -> None:
     plot_normalized(rows, best_calibrated, out_dir)
     plot_ablation(rows, out_dir)
     plot_papr_ccdf(calib, best_calibrated, out_dir)
-    write_outputs(args, out_dir, calib, rows, best_bound, best_calibrated)
+    write_outputs(args, out_dir, calib, rows, best_bound, best_calibrated, chi_gate_msgs)
 
     print(json.dumps({
         "output_dir": str(out_dir),
         "k_star_calibrated": {m: best_calibrated[m]["ratio"] for m in best_calibrated},
         "k_star_bound_diagnostic": {m: best_bound[m]["ratio"] for m in best_bound},
+        "chi_gate": chi_gate_msgs,
         "interior_check": interior_check(rows, best_calibrated, "J_calibrated"),
     }, ensure_ascii=False, indent=2))
 

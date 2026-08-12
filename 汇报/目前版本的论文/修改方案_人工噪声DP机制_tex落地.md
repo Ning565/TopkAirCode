@@ -528,3 +528,94 @@ $\sigma_{\mathrm{dp}}$、$\epsilon_{\mathrm{loose}}(k)$（定义同 §1 表）�
 3. 编译两文（latexmk），核对 §5 清单；
 4. 同步场景文档隐私节（汇报8.4/0807 版，以 DP_MECHANISM_0810.md 为准）；
 5. exp_0810 新结果产出后重写 v8 §VI Simulation（本方案 V9 只做最小防矛盾修改）。
+
+---
+
+## 7. 0812 追加：BS 端后处理去噪协议与影响文档遗留问题的主流化处理
+
+> 依据：`人工噪声补足机制对隐私功率与收敛性的影响.md`（0811 用户审阅文档）+
+> 五篇文献机制核实（PFELS TDSC'24 / Amiri&Gündüz TSP'20 / Jeon TWC'21 /
+> Liu TWC'24 / Wei JSAC'22）。§1–§6 的全部内容（min 规则、标定、功率税、
+> Laurent–Massart 裕量、隐私定理、引理 A.1–A.7）**零改动**。
+
+### 7.1 不收敛的机理定位（为什么全维加噪本身没错，我们却收敛困难）
+
+- 人工噪声派（Wei JSAC'22 / Liu TWC'24）全 d 维注噪且不做接收端去噪，但其**信号
+  也是全 d 维的**：噪声/信号能量比 = 逐坐标 SNR，没有维度放大；
+- 我们是稀疏传输（Top-k/Rand-k），有效信号只占 k 维、聚合并集 ≤ Nk 维，而噪声
+  铺满 d 维：能量比被放大 d/k 倍（k/d=0.001 时即 1000 倍），χ_A 有 k 无关下限
+  2d/(N²m²)，0811 实测噪声/信号范数比 59–88——**"k 维信号 vs d 维噪声"的失配是
+  稀疏化+人工噪声组合独有的问题**，两派单独都不会遇到；
+- PFELS 的噪声只有 k 维是因为 rand-k 投影矩阵由**服务器生成并公开广播**
+  （Algorithm 2 line 3–4），输出天然落在公开 k 维子空间；私有 Top-k 支持集
+  不可复制此路（只铺支持集泄露支持集，见影响文档 §2）；
+- 关键账目：即使做到理想 k 维噪声，ε=15、N=20 时噪声/信号范数比也只降
+  √(d/k)≈31.6 倍、剩 ≈1.9–2.8（与 PFELS 正常收敛的"噪声≈信号"量级一致）。
+  所以主要矛盾是 d−k 个纯噪声坐标全部进模型，去噪解决"60 倍→2 倍"这一段。
+
+### 7.2 协议决定（D4）：发射侧不动 + BS 端公开 top-m 幅度截断（条件启用）
+
+主流先例：Amiri&Gündüz TSP'20（"The PS tries to reconstruct the sum of the actual
+sparse gradient vectors from its noisy observation. We use approximate message
+passing (AMP)"）与 Jeon TWC'21（服务器端压缩感知重构，利用梯度稀疏先验）——
+**接收端稀疏重构/去噪是 AirComp 稀疏传输的通信主流路线**。DP 合法性：BS 收到的
+含噪观测已完成隐私机制，其后任何只依赖公开量的映射均为 post-processing，
+(ε,δ) 一字不动（隐私定理证明末句的 post-processing 枚举加一词即可）。
+
+**协议**：BS 恢复 d 维向量后，可选保留幅度最大的 m=min(d, N·k) 个坐标、其余
+归零（真实聚合信号支持集并集 ≤ Nk，N、k 公开 ⇒ m 公开，零新增信令）。
+
+**0812 实测修正（落地后的诚实结论，详见 DP_MECHANISM §6.5）**：合成链路审计
+符合理论（截断后噪声能量 14.4%，次序统计量预测 17.6%；无噪时无损），但
+ε=15、N=20 基线上学习侧是**负结果**：逐坐标聚合信号尺度 ≈c_tx/N=5e-4 而
+σ_dp≈5.3e-3，幅度排序被噪声主导，截断误杀 ~98% 信号漂移（MNIST 24 轮：不
+截断 9.4%→29.9% 持续上升，截断卡死 ~10%）；未截断时噪声零均值，SGD 逐轮
+平均掉它。**故截断作为条件选项落地（默认关闭），适用条件：σ_dp 低于逐坐标
+聚合信号尺度（逐坐标 SNR≳1，即大 ε/大 N 工作点）**。升级阶梯（不在本次
+范围）：MMSE 逐坐标收缩（无硬判决无误杀，但整体衰减更新需配合服务器侧
+学习率补偿）→ AMP 重构（期刊卖点，Amiri/Jeon 同款）。基线工作点的收敛依据
+回到旧实验三经验（全 d 维零均值噪声 σ=0.0055 仍训到 81%）+ σ_dp 操作性
+指标 + χ_eff 绝对量纲门槛。noisy-vector-后-Top-k 备选维持 §6.2 判定：不采纳。
+
+**收敛分析收编方式**：主定理**一字不动**（在截断关闭时逐字适用；截断为可选
+增强）；新增 remark（rem:denoise）：若 BS 施加只依赖公开量的截断算子 T_m，
+则噪声项有效维度由 d 降为 m·(1+2ln(d/m)) 量级，另加截断偏差项，并**显式写明
+适用条件**（σ_dp 低于 c_tx/N 量级时才启用，否则排序被噪声主导）；与影响文档
+§3 "若能严格证明输出只位于公开子空间则 d 可换 k" 兼容——我们不声称 k（支持集
+私有），声称的是公开的 m=Nk 量级且附适用条件。
+
+### 7.3 其余各项的主流化处理（对照影响文档问题清单）
+
+| 问题 | 主流做法 | 处理 |
+|---|---|---|
+| 功率税 √F、噪声主导发射功率 | Liu TWC'24 功率分账 \|s₁\|²+\|s₂\|²≤Pmax，强隐私下噪声占大头，诚实呈现不消除 | 已对齐（√F 闭式 + N 分摊），不再动 |
+| 功率高概率口径 | 期望口径为主流（Liu 式(10)）；我们更强 | 已解决（Laurent–Massart，§6.4），不再动 |
+| c_tx 两难 | 固定公开裁剪常数（Wei JSAC'22 的 C），不做自适应（另耗预算且违反 b_t 不依赖私有范数口径） | 保持 c_tx=0.01；饱和后 SNR 不改善的根因是 d 维噪声，去噪落地后用同一审计重扫再定 |
+| exp1 归一化消除绝对量级 | 主流离线目标用绝对 MSE/SNR 量纲，无方法内归一化 | χ_eff(k)=min(d,Nk)·σ_dp²/E‖s̄‖² 作可行性门槛（CLI 可调），归一化分数只在可行集内选 k*；逐候选照常报告 chi 审计 |
+| 论文同步清单五条 | — | 前四条已落地（c1a170f/94a3b98）；第五条（随机压缩算子重定义）不触发：本协议不改压缩算子 |
+
+### 7.4 落地清单（代码 + tex）
+
+代码（exp_0810）：
+1. `full_system_0810.py`：`transmit_round` 增 `denoise_m` 参数（top-m 截断 +
+   `nmse_total_denoised`/`denoise_keep_energy` 审计）；`LearnConfig.bs_denoise_mode`
+   （"topm"/"off"，**默认 off**，0812 实测负结果后修正）；`run_training` 按协议传
+   m=min(d,Nk)；
+2. `exp1_offline_ksearch.py`：校准链路同步传 denoise_m；新增 `chi_eff` 列与
+   `--chi-max` 可行性门槛（默认 100，全不可行时回退选 min χ_eff 并告警）；
+3. `exp2_online_ksearch.py`：透传 `--bs-denoise` CLI（默认 off）；
+4. `DP_MECHANISM_0810.md` 增 §6.5 记录机制、实测负结果与适用条件。
+
+tex（增量极小，主定理/min 规则/隐私证明主体零改动）：
+- **C14**（convergence_analysis.tex）：lemma:noise_error 后或 Interpretation 节新增
+  remark（Server-Side Post-Processing Denoising：T_m 定义、有效维度、偏差项、
+  post-processing 不损 DP、引 Amiri/Jeon）；
+- **V12**（v8.tex）：系统模型加一句 BS top-m 截断协议；隐私证明 post-processing
+  枚举加 "server-side magnitude truncation"；joint design 节 χ_eff 门槛一句。
+
+### 7.5 不动清单（0812 版）
+
+发射链与 d 维注噪、σ_a 标定、σ_eff、min 规则与 Proposition、√F、Laurent–Massart
+裕量、隐私定理主体、引理 A.1–A.7、E_clip 链、学习率条件、c_tx=0.01、
+exp_0810 全部已有结果（去噪默认关闭，旧口径逐字复现；`--bs-denoise topm`
+仅在逐坐标 SNR≳1 的工作点启用）。

@@ -280,6 +280,7 @@ with the round-wise effective noise level $\sigma_{\mathrm{eff},t}^2\triangleq\s
  =\frac{d\,\sigma_{\mathrm{eff},t}^2}{2b_t^2N^2}.
  \label{eqn:channel_error_energy}
 \end{equation}
+Before the model update, the BS may additionally apply a public post-processing truncation: the true aggregate is supported on at most $\min\{d,Nk\}$ coordinates and both $N$ and $k$ are public, so the recovery keeps the $\min\{d,Nk\}$ largest-magnitude coordinates of $\hat{\mathbf s}_{\mathrm{lin}}^t$ and zeroes the rest, following the sparse-reconstruction reception strategy of over-the-air designs that recover a sparse aggregate from the noisy observation at the server~\cite{amiri2020machine,jeon2021compressive}. Acting on the already-noisy observation with public parameters only, the truncation does not affect the privacy guarantee, and it reduces the noise energy entering the model from the $d$-coordinate count in~\eqref{eqn:channel_error_energy} to its top-$\min\{d,Nk\}$ order statistics. Magnitude ranking is informative only when $\sigma_{\mathrm{dp}}$ lies below the per-coordinate scale of the aggregate (of order $c_{\mathrm{tx}}/N$); outside this regime the ranking is noise-driven and the truncation would bias the update, so the protocol declares the truncation enabled or disabled from public quantities before training and the convergence analysis charges the full $d$-dimensional noise term whenever it is disabled.
 
 \subsection{Per-Round Power Constraint and Public Scaling}
 Let $c_{\mathrm{tx}}>0$ be a declared public coordinate threshold fixed independently of the optimizer learning-rate schedule. With a unitary IFFT, client $i$ has complete-burst average transmit power
@@ -371,7 +372,7 @@ We consider an honest-but-curious BS that follows the declared full-client AirCo
  \mathcal Q_t(\mathcal D)=b_t\sum_{i=1}^{N}\mathbf s_i^t(\mathcal D_i).
  \label{eqn:privacy_query_system}
 \end{equation}
-Receiver noise randomizes this query before AGC, radial limiting, inverse-gain restoration, FFT recovery, division by $N$, and model release.
+Receiver noise randomizes this query before AGC, radial limiting, inverse-gain restoration, FFT recovery, division by $N$, public magnitude truncation, and model release.
 
 \begin{definition}[\bf $L_2$-Sensitivity]
 The $L_2$-sensitivity is $\Delta_2(\mathcal Q)=\sup_{\mathcal D\sim\mathcal D'}\|\mathcal Q(\mathcal D)-\mathcal Q(\mathcal D')\|_2$.
@@ -421,7 +422,7 @@ The round-$t$ pre-noise query is
  \mathcal Q_t(\mathcal D)=b_t\sum_{i=1}^{N}\mathbf s_i^t(k).
  \label{eqn:privacy_query}
 \end{equation}
-The BS observes this query plus the real Gaussian randomness formed by the thermal noise of variance $\sigma_{\mathrm{sc}}^2/2$ per coordinate and the $N$ aggregated artificial-noise components, with total per-coordinate variance $\sigma_{\mathrm{eff},t}^2/2$. Subsequent AGC, radial limiting, inverse-gain restoration, FFT recovery, normalization, and model updating are post-processing.
+The BS observes this query plus the real Gaussian randomness formed by the thermal noise of variance $\sigma_{\mathrm{sc}}^2/2$ per coordinate and the $N$ aggregated artificial-noise components, with total per-coordinate variance $\sigma_{\mathrm{eff},t}^2/2$. Subsequent AGC, radial limiting, inverse-gain restoration, FFT recovery, normalization, public magnitude truncation, and model updating are post-processing.
 
 \begin{lemma}[\bf Sparse AirComp Sensitivity]\label{lemma:sen}
 For any mechanism satisfying $\|\mathbf s_i^t(k)\|_0\le k$ and $\|\mathbf s_i^t(k)\|_\infty\le c_{\mathrm{tx}}$,
@@ -1014,7 +1015,9 @@ Substitution gives the mechanism-specific sparsity score
  +\lambda_{\mathrm{dr}}\widehat D_{\mathrm{DR},A}(k;\gamma)\notag\\
  &\quad+\frac{\lambda_{\mathrm{ch}}}{T}\sum_{t=0}^{T-1}\frac{\sigma_{\mathrm{eff},t}^2}{(b_t^\star(k))^2},
 \end{align}
-with $k_A^\star=\arg\min_{k\in\mathcal K}J_A(k)$. The server evaluates $B_P^t(k)$ from current public CSI and applies~\eqref{eqn:bstar} causally. No future channel trajectory or cross-round privacy allocation is required.
+with $k_A^\star=\arg\min_{k\in\mathcal K}J_A(k)$. Candidates are additionally screened by the absolute-scale feasibility gate
+$\chi_{\mathrm{eff}}(k)=\min\{d,Nk\}\,\sigma_{\mathrm{dp}}^2(k)/\mathbb E\|\bar{\mathbf s}^t(k)\|_2^2\le\chi_{\max}$,
+the noise-to-signal energy ratio on the aggregate support union in absolute units, which the per-mechanism normalization of $J_A(k)$ deliberately does not constrain. The server evaluates $B_P^t(k)$ from current public CSI and applies~\eqref{eqn:bstar} causally. No future channel trajectory or cross-round privacy allocation is required.
 
 The proposition is surrogate optimal rather than an unconditional exact-waveform optimum: ideal RMS-AGC makes the exact noisy radial residual depend on $b_t$ through signal-to-noise ratio. It is nevertheless the exact largest feasible scaling and the optimum of the declared calibrated score.
 \end{revisionblock}

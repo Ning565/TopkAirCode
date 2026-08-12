@@ -215,6 +215,23 @@ class LearnConfig:
     # Optional post-processing denoising with the PUBLIC Rand-k mask only.
     # Disabled by default: the theorem counts channel noise on all d coords.
     randk_public_mask_denoise: bool = False
+    # BS-side post-processing denoising (protocol D4, 修改方案 §7.2).  The
+    # recovered d-vector keeps only the m = min(d, N*k) largest-magnitude
+    # coordinates (the true aggregate support union is <= N*k, and N, k are
+    # public, so m is public: zero extra signaling).  This is DP
+    # post-processing on the already-noisy observation and does not change
+    # (eps, delta).  Mainstream precedent: receiver-side sparse
+    # reconstruction in Amiri&Gunduz TSP'20 (AMP) and Jeon TWC'21 (CS).
+    # 0812 audited caveat: magnitude ranking is valid ONLY when sigma_dp
+    # lies below the per-coordinate aggregate signal scale.  At the eps=15
+    # baseline sigma_dp ~ 5e-3 exceeds the aggregate coordinate scale
+    # (~c_tx/N = 5e-4), ranking is noise-driven, and truncation destroys
+    # ~98% of the signal drift: MNIST 24-round smoke stalls at ~10% acc vs
+    # ~30% without truncation (the zero-mean noise averages out in SGD,
+    # while hard truncation biases the update).  Hence DEFAULT OFF; enable
+    # "topm" only at operating points with per-coordinate SNR >~ 1
+    # (eps >= eps_loose(k) territory or larger N).
+    bs_denoise_mode: str = "off"
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +466,7 @@ class OFDMAirCompChannel:
         sigma_a: float = 0.0,
         g_abs_min: float = 0.0,
         k: int = 0,
+        denoise_m: int = 0,
     ) -> Tuple[torch.Tensor, Dict[str, float]]:
         """One counted logical round: aggregate, clip, recover, measure.
 
@@ -465,6 +483,12 @@ class OFDMAirCompChannel:
         margin (scaling_limits["power_tail_margin"]) guarantees this ratio
         stays <= 1 at the declared confidence for every burst; its expected
         value is 1/(1+M).
+
+        When `denoise_m` in (0, d), the BS keeps only the denoise_m
+        largest-magnitude coordinates of the recovered vector (public
+        top-m truncation, protocol D4): DP post-processing that removes
+        the d - m pure-noise coordinates from the model update.  Both the
+        raw and denoised NMSE are reported for the audit.
         """
         phy = self.phy
         n_clients = len(signals)
@@ -573,6 +597,22 @@ class OFDMAirCompChannel:
         diff_tot = rec_clip - s_ideal
         nmse_total = float(diff_tot.pow(2).sum() / s_ideal.pow(2).sum().clamp_min(1e-300))
 
+        # ---- BS-side public top-m truncation (DP post-processing) ----------
+        if 0 < denoise_m < self.d:
+            keep_idx = torch.topk(rec_clip.abs(), denoise_m).indices
+            rec_out = torch.zeros_like(rec_clip)
+            rec_out[keep_idx] = rec_clip[keep_idx]
+            nmse_total_denoised = float(
+                (rec_out - s_ideal).pow(2).sum() / s_ideal.pow(2).sum().clamp_min(1e-300)
+            )
+            denoise_keep_energy = float(
+                rec_out.pow(2).sum() / rec_clip.pow(2).sum().clamp_min(1e-300)
+            )
+        else:
+            rec_out = rec_clip
+            nmse_total_denoised = nmse_total
+            denoise_keep_energy = 1.0
+
         metrics = {
             "papr_mean_db": papr_mean_db,
             "papr_p99_db": papr_p99_db,
@@ -588,6 +628,9 @@ class OFDMAirCompChannel:
             "e_clip_over_b2": e_clip / (b_star * b_star),
             "nmse_clip": nmse_clip,
             "nmse_total": nmse_total,
+            "nmse_total_denoised": nmse_total_denoised,
+            "denoise_m": float(denoise_m),
+            "denoise_keep_energy": denoise_keep_energy,
             "sigma_a_client": sigma_a,
             "realized_power_utilization_max": realized_util,
             "art_over_thermal_db": (
@@ -601,7 +644,7 @@ class OFDMAirCompChannel:
         }
         if collect_papr_samples:
             metrics["papr_db_samples"] = papr_db.numpy().copy()
-        return rec_clip.to(torch.float32), metrics
+        return rec_out.to(torch.float32), metrics
 
 
 # ---------------------------------------------------------------------------
@@ -955,9 +998,17 @@ class FLSystem:
                 losses.append(loss)
                 retained.append(ret)
                 mask_union |= mask
+            # Protocol D4: BS keeps the m = min(d, N*k) largest coordinates
+            # of the recovered vector (public top-m; lossless on a noiseless
+            # aggregate whose support union is <= N*k).
+            denoise_m = (
+                min(d, phy.num_clients * k)
+                if cfg.bs_denoise_mode == "topm" and k < d else 0
+            )
             update, comm = channel.transmit_round(
                 signals, lim["b_star"], r,
                 sigma_a=lim["sigma_a_client"], g_abs_min=float(rc.g_abs.min()), k=k,
+                denoise_m=denoise_m,
             )
             if method == "randk" and cfg.randk_public_mask_denoise and common_idx is not None:
                 keep = torch.zeros(d, dtype=torch.bool)
@@ -988,7 +1039,7 @@ class FLSystem:
                     f"{log_prefix}[{self.dataset}/{method} r={ratio:.3f}] round {r + 1}/{cfg.rounds} "
                     f"acc={acc:.2f} b*={lim['b_star']:.3e} ({lim['regime']}) "
                     f"papr99={comm['papr_p99_db']:.2f}dB rho={comm['rho_clip']:.2e} "
-                    f"nmse_tot={comm['nmse_total']:.2e}",
+                    f"nmse_tot={comm['nmse_total']:.2e} nmse_den={comm['nmse_total_denoised']:.2e}",
                     flush=True,
                 )
         return rows

@@ -304,6 +304,12 @@ def main() -> None:
                              "-30.3 reproduces the legacy SNR15 effective noise at r=250m")
     parser.add_argument("--power-tail-conf", type=float, default=1.0 - 1e-6,
                         help="per-burst power confidence for the Laurent-Massart margin (DP_MECHANISM §6.4)")
+    parser.add_argument("--bs-denoise", default="off", choices=["topm", "off"],
+                        help="BS-side public top-m truncation of the recovered vector "
+                             "(m=min(d,N*k), DP post-processing, 修改方案 §7.2). "
+                             "0812 audit: enable ONLY when sigma_dp < per-coordinate "
+                             "aggregate signal scale (~c_tx/N); at eps=15 ranking is "
+                             "noise-driven and truncation stalls training -> default off")
     parser.add_argument("--num-clients", type=int, default=20)
     parser.add_argument("--oversampling", type=int, default=4)
     # Learning knobs.
@@ -341,6 +347,7 @@ def main() -> None:
         eval_every=args.eval_every,
         lr=args.lr,
         local_steps=args.local_steps,
+        bs_denoise_mode=args.bs_denoise,
         mnist_root=args.mnist_root,
         femnist_path=args.femnist_path,
         femnist_test_path=args.femnist_test_path,
